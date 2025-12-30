@@ -37,7 +37,7 @@ async function bootstrap() {
 
     // Configurar CORS
     app.enableCors({
-        origin: ['http://localhost:3000', 'http://localhost:3001'],
+        origin: true, // Permitir cualquier origen en producción
         credentials: true,
     });
 
@@ -51,9 +51,18 @@ async function bootstrap() {
     // Prefijo global para API
     app.setGlobalPrefix('api');
 
-    await app.listen(3001);
-    console.log('🚀 ServiceOps Pro Backend running on http://localhost:3001');
+    // Health check endpoint (sin prefijo /api)
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.get('/health', (req: any, res: any) => {
+        res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+    });
+
+    const port = process.env.PORT || 3001;
+    await app.listen(port);
+    console.log(`🚀 ServiceOps Pro Backend running on port ${port}`);
     console.log('📸 Configurado para manejar payloads hasta 50MB');
     console.log('📁 Archivos estáticos servidos desde /uploads');
+    console.log('💚 Health check disponible en /health');
 }
+
 bootstrap();
