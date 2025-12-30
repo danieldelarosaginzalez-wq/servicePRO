@@ -1,0 +1,73 @@
+.App {
+    text-align: center;
+}
+
+.App-logo {
+    height: 40vmin;
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .App-logo {
+        animation: App-logo-spin infinite 20s linear;
+    }
+}
+
+.App-header {
+    background-color: #282c34;
+    padding: 20px;
+    color: white;
+}
+
+.App-link {
+    color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* AG-Grid customizations */
+.ag-theme-alpine {
+    --ag-header-height: 48px;
+    --ag-row-height: 42px;
+    --ag-font-size: 14px;
+    --ag-font-family: 'Roboto', sans-serif;
+}
+
+.ag-theme-alpine .ag-header {
+    font-weight: 600;
+}
+
+.ag-theme-alpine .ag-row-selected {
+    background-color: #e3f2fd !important;
+}
+
+.ag-theme-alpine .ag-row:hover {
+    background-color: #f5f5f5;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
