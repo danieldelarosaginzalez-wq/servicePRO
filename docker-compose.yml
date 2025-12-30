@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:6
+    container_name: serviceops-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: serviceops2024
+      MONGO_INITDB_DATABASE: serviceops
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - serviceops-network
+
+  # Backend NestJS
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: serviceops-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      MONGODB_URI: mongodb://admin:serviceops2024@mongodb:27017/serviceops?authSource=admin
+      JWT_SECRET: serviceops-jwt-secret-2024-production
+    volumes:
+      - backend_uploads:/app/uploads
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+    networks:
+      - serviceops-network
+
+  # Frontend React + Nginx
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: serviceops-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - serviceops-network
+
+volumes:
+  mongodb_data:
+  backend_uploads:
+
+networks:
+  serviceops-network:
+    driver: bridge
