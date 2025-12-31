@@ -1,32 +1,36 @@
 # Frontend Dockerfile - React con Nginx
-# Etapa de construcción
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copiar archivos de dependencias
 COPY package*.json ./
-
-# Instalar dependencias
 RUN npm ci && npm cache clean --force
 
-# Copiar código fuente
 COPY . .
-
-# Construir la aplicación
 RUN npm run build
 
-# Etapa de producción con Nginx
+# Crear nginx.conf inline para evitar problemas de contexto
+RUN echo 'server { \
+    listen 80; \
+    server_name localhost; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    gzip on; \
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ { \
+        expires 1y; \
+        add_header Cache-Control "public, immutable"; \
+    } \
+}' > /app/nginx.conf
+
 FROM nginx:alpine
 
-# Copiar configuración de nginx
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Copiar archivos construidos
+COPY --from=builder /app/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Exponer puerto
 EXPOSE 80
 
-# Comando de inicio
 CMD ["nginx", "-g", "daemon off;"]
