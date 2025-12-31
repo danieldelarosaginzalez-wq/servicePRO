@@ -13,6 +13,8 @@ const inventory_controller_1 = require("./inventory.controller");
 const inventory_service_1 = require("./inventory.service");
 const user_schema_1 = require("../users/schemas/user.schema");
 const material_schema_1 = require("../materials/schemas/material.schema");
+const notifications_module_1 = require("../notifications/notifications.module");
+const websocket_module_1 = require("../websocket/websocket.module");
 let InventoryModule = class InventoryModule {
 };
 exports.InventoryModule = InventoryModule;
@@ -23,6 +25,8 @@ exports.InventoryModule = InventoryModule = __decorate([
                 { name: user_schema_1.User.name, schema: user_schema_1.UserSchema },
                 { name: material_schema_1.Material.name, schema: material_schema_1.MaterialSchema },
             ]),
+            (0, common_1.forwardRef)(() => notifications_module_1.NotificationsModule),
+            websocket_module_1.WebSocketModule,
         ],
         controllers: [inventory_controller_1.InventoryController],
         providers: [inventory_service_1.InventoryService],

@@ -28,7 +28,7 @@ async function bootstrap() {
         prefix: '/uploads/',
     });
     app.enableCors({
-        origin: ['http://localhost:3000', 'http://localhost:3001'],
+        origin: true,
         credentials: true,
     });
     app.useGlobalPipes(new common_1.ValidationPipe({
@@ -37,10 +37,16 @@ async function bootstrap() {
         transform: true,
     }));
     app.setGlobalPrefix('api');
-    await app.listen(3001);
-    console.log('🚀 ServiceOps Pro Backend running on http://localhost:3001');
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.get('/health', (req, res) => {
+        res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+    });
+    const port = process.env.PORT || 3001;
+    await app.listen(port);
+    console.log(`🚀 ServiceOps Pro Backend running on port ${port}`);
     console.log('📸 Configurado para manejar payloads hasta 50MB');
     console.log('📁 Archivos estáticos servidos desde /uploads');
+    console.log('💚 Health check disponible en /health');
 }
 bootstrap();
 //# sourceMappingURL=main.js.map

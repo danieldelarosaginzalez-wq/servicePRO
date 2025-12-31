@@ -23,7 +23,16 @@ let WebSocketGatewayService = class WebSocketGatewayService {
         console.log(`🔌 Cliente conectado: ${client.id}`);
     }
     handleDisconnect(client) {
-        console.log(`🔌 Cliente desconectado: ${client.id}`);
+        const user = this.connectedUsers.get(client.id);
+        if (user) {
+            console.log(`🔌 Usuario desconectado: ${user.nombre} (${user.rol})`);
+            if (user.rol === 'tecnico') {
+                this.server.to('rol-analista').emit('technician-offline', {
+                    userId: user.oderId,
+                    nombre: user.nombre,
+                });
+            }
+        }
         this.connectedUsers.delete(client.id);
         this.broadcastOnlineUsers();
     }
@@ -33,10 +42,18 @@ let WebSocketGatewayService = class WebSocketGatewayService {
             oderId: data.userId,
             rol: data.rol,
             nombre: data.nombre,
+            socketId: client.id,
+            connectedAt: new Date(),
         });
         client.join(`rol-${data.rol}`);
         client.join(`user-${data.userId}`);
         console.log(`👤 Usuario registrado: ${data.nombre} (${data.rol})`);
+        if (data.rol === 'tecnico') {
+            this.server.to('rol-analista').emit('technician-online', {
+                userId: data.userId,
+                nombre: data.nombre,
+            });
+        }
         this.broadcastOnlineUsers();
         return { success: true, message: 'Registrado correctamente' };
     }
@@ -48,14 +65,22 @@ let WebSocketGatewayService = class WebSocketGatewayService {
         client.leave(`order-${data.orderId}`);
         return { success: true };
     }
+    sendNotification(userId, notification) {
+        this.server.to(`user-${userId}`).emit('notification', notification);
+        console.log(`📢 Notificación enviada a ${userId}: ${notification.title}`);
+    }
+    sendNotificationToRole(rol, notification) {
+        this.server.to(`rol-${rol}`).emit('notification', notification);
+        console.log(`📢 Notificación enviada a rol ${rol}: ${notification.title}`);
+    }
     notifyOrderCreated(order) {
         this.server.to('rol-analista').emit('order-created', order);
-        console.log('📢 Notificación: Nueva orden creada');
+        console.log('📢 Nueva orden creada:', order.codigo);
     }
     notifyOrderAssigned(order, technicianId) {
         this.server.to(`user-${technicianId}`).emit('order-assigned', order);
         this.server.to('rol-analista').emit('order-updated', order);
-        console.log(`📢 Notificación: Orden asignada a técnico ${technicianId}`);
+        console.log(`📢 Orden ${order.codigo} asignada a técnico ${technicianId}`);
     }
     notifyOrderStatusChanged(order) {
         this.server.to(`order-${order._id}`).emit('order-status-changed', order);
@@ -64,39 +89,84 @@ let WebSocketGatewayService = class WebSocketGatewayService {
             const techId = typeof order.tecnico_id === 'object' ? order.tecnico_id._id : order.tecnico_id;
             this.server.to(`user-${techId}`).emit('order-updated', order);
         }
-        console.log(`📢 Notificación: Estado de orden cambiado a ${order.estado}`);
+        console.log(`📢 Estado de orden ${order.codigo} cambiado a ${order.estado}`);
     }
     notifyOrderProgress(order, fase) {
         this.server.to(`order-${order._id}`).emit('order-progress', { order, fase });
         this.server.to('rol-analista').emit('order-progress', { order, fase });
-        console.log(`📢 Notificación: Progreso de orden - fase ${fase}`);
+        console.log(`📢 Progreso de orden ${order.codigo} - fase ${fase}`);
+    }
+    notifyOrderCompleted(order) {
+        this.server.to('rol-analista').emit('order-completed', order);
+        this.server.to('rol-analista_inventario_oculto').emit('order-completed', order);
+        console.log(`📢 Orden ${order.codigo} completada`);
+    }
+    notifyOrderImpossibility(order) {
+        this.server.to('rol-analista').emit('order-impossibility', order);
+        console.log(`📢 Imposibilidad en orden ${order.codigo}`);
     }
     notifyInventoryUpdated(technicianId, data) {
         this.server.to(`user-${technicianId}`).emit('inventory-updated', data);
         this.server.to('rol-analista_inventario_oculto').emit('inventory-updated', { technicianId, ...data });
-        console.log(`📢 Notificación: Inventario actualizado para técnico ${technicianId}`);
+        console.log(`📢 Inventario actualizado para técnico ${technicianId}`);
     }
     notifyMaterialAssigned(technicianId, materials) {
         this.server.to(`user-${technicianId}`).emit('materials-assigned', materials);
-        console.log(`📢 Notificación: Materiales asignados a técnico ${technicianId}`);
+        console.log(`📢 Materiales asignados a técnico ${technicianId}`);
+    }
+    notifyMaterialsConsumed(technicianId, orderId, materials) {
+        this.server.to('rol-analista_inventario_oculto').emit('materials-consumed', {
+            technicianId,
+            orderId,
+            materials,
+        });
+        console.log(`📢 Materiales consumidos por técnico ${technicianId}`);
+    }
+    notifyDiscrepancy(controlId, technicianId, data) {
+        this.server.to('rol-analista_inventario_oculto').emit('materials-discrepancy', {
+            controlId,
+            technicianId,
+            ...data,
+        });
+        this.server.to(`user-${technicianId}`).emit('materials-discrepancy', { controlId });
+        console.log(`🚨 Descuadre detectado en control ${controlId}`);
+    }
+    notifyLowStock(technicianId, material) {
+        this.server.to(`user-${technicianId}`).emit('low-stock', material);
+        this.server.to('rol-analista_inventario_oculto').emit('low-stock', { technicianId, material });
+        console.log(`⚠️ Stock bajo para técnico ${technicianId}: ${material.nombre}`);
     }
     notifyNewVisitReport(report) {
         this.server.to('rol-analista').emit('visit-report-created', report);
-        console.log('📢 Notificación: Nuevo comprobante de visita');
+        console.log('📢 Nuevo comprobante de visita');
     }
-    sendNotification(userId, notification) {
-        this.server.to(`user-${userId}`).emit('notification', notification);
-        console.log(`📢 Notificación enviada a usuario ${userId}: ${notification.title}`);
+    handleDirectMessage(client, data) {
+        const sender = Array.from(this.connectedUsers.values()).find(u => u.socketId === client.id);
+        this.server.to(`user-${data.recipientId}`).emit('direct-message', {
+            senderId: sender?.oderId,
+            senderName: sender?.nombre,
+            message: data.message,
+            timestamp: new Date(),
+        });
+        return { success: true };
     }
     broadcastToRole(rol, event, data) {
         this.server.to(`rol-${rol}`).emit(event, data);
     }
     broadcastOnlineUsers() {
-        const users = Array.from(this.connectedUsers.values());
+        const users = Array.from(this.connectedUsers.values()).map(u => ({
+            oderId: u.oderId,
+            nombre: u.nombre,
+            rol: u.rol,
+            connectedAt: u.connectedAt,
+        }));
         this.server.emit('online-users', users);
     }
     getOnlineUsers() {
         return Array.from(this.connectedUsers.values());
+    }
+    getOnlineTechnicians() {
+        return Array.from(this.connectedUsers.values()).filter(u => u.rol === 'tecnico');
     }
     isUserOnline(userId) {
         return Array.from(this.connectedUsers.values()).some(u => u.oderId === userId);
@@ -131,10 +201,18 @@ __decorate([
     __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
     __metadata("design:returntype", void 0)
 ], WebSocketGatewayService.prototype, "handleLeaveOrder", null);
+__decorate([
+    (0, websockets_1.SubscribeMessage)('direct-message'),
+    __param(0, (0, websockets_1.ConnectedSocket)()),
+    __param(1, (0, websockets_1.MessageBody)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
+    __metadata("design:returntype", void 0)
+], WebSocketGatewayService.prototype, "handleDirectMessage", null);
 exports.WebSocketGatewayService = WebSocketGatewayService = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {
-            origin: ['http://localhost:3000', 'http://localhost:3001'],
+            origin: true,
             credentials: true,
         },
     })

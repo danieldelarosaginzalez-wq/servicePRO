@@ -20,6 +20,7 @@ const material_control_module_1 = require("./material-control/material-control.m
 const visit_reports_module_1 = require("./visit-reports/visit-reports.module");
 const files_module_1 = require("./files/files.module");
 const websocket_module_1 = require("./websocket/websocket.module");
+const notifications_module_1 = require("./notifications/notifications.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -40,6 +41,7 @@ exports.AppModule = AppModule = __decorate([
             visit_reports_module_1.VisitReportsModule,
             files_module_1.FilesModule,
             websocket_module_1.WebSocketModule,
+            notifications_module_1.NotificationsModule,
         ],
     })
 ], AppModule);

@@ -14,6 +14,8 @@ const orders_service_1 = require("./orders.service");
 const order_schema_1 = require("./schemas/order.schema");
 const poliza_schema_1 = require("../polizas/schemas/poliza.schema");
 const user_schema_1 = require("../users/schemas/user.schema");
+const notifications_module_1 = require("../notifications/notifications.module");
+const websocket_module_1 = require("../websocket/websocket.module");
 let OrdersModule = class OrdersModule {
 };
 exports.OrdersModule = OrdersModule;
@@ -25,6 +27,8 @@ exports.OrdersModule = OrdersModule = __decorate([
                 { name: poliza_schema_1.Poliza.name, schema: poliza_schema_1.PolizaSchema },
                 { name: user_schema_1.User.name, schema: user_schema_1.UserSchema },
             ]),
+            (0, common_1.forwardRef)(() => notifications_module_1.NotificationsModule),
+            websocket_module_1.WebSocketModule,
         ],
         controllers: [orders_controller_1.OrdersController],
         providers: [orders_service_1.OrdersService],

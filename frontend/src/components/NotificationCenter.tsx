@@ -22,13 +22,13 @@ import {
     Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { websocketService } from '../services/websocketService';
-import notificationService, { Notification } from '../services/notificationService';
+import notificationService, { Notification as AppNotification } from '../services/notificationService';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const NotificationCenter: React.FC = () => {
     const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
-    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);

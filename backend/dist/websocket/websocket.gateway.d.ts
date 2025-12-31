@@ -5,6 +5,8 @@ interface ConnectedUser {
     oderId: string;
     rol: string;
     nombre: string;
+    socketId: string;
+    connectedAt: Date;
 }
 export declare class WebSocketGatewayService implements OnGatewayConnection, OnGatewayDisconnect {
     server: Server;
@@ -29,21 +31,30 @@ export declare class WebSocketGatewayService implements OnGatewayConnection, OnG
     }): {
         success: boolean;
     };
+    sendNotification(userId: string, notification: any): void;
+    sendNotificationToRole(rol: string, notification: any): void;
     notifyOrderCreated(order: any): void;
     notifyOrderAssigned(order: any, technicianId: string): void;
     notifyOrderStatusChanged(order: any): void;
     notifyOrderProgress(order: any, fase: string): void;
+    notifyOrderCompleted(order: any): void;
+    notifyOrderImpossibility(order: any): void;
     notifyInventoryUpdated(technicianId: string, data: any): void;
     notifyMaterialAssigned(technicianId: string, materials: any[]): void;
+    notifyMaterialsConsumed(technicianId: string, orderId: string, materials: any[]): void;
+    notifyDiscrepancy(controlId: string, technicianId: string, data: any): void;
+    notifyLowStock(technicianId: string, material: any): void;
     notifyNewVisitReport(report: any): void;
-    sendNotification(userId: string, notification: {
-        title: string;
+    handleDirectMessage(client: Socket, data: {
+        recipientId: string;
         message: string;
-        type: string;
-    }): void;
+    }): {
+        success: boolean;
+    };
     broadcastToRole(rol: string, event: string, data: any): void;
     private broadcastOnlineUsers;
     getOnlineUsers(): ConnectedUser[];
+    getOnlineTechnicians(): ConnectedUser[];
     isUserOnline(userId: string): boolean;
 }
 export {};

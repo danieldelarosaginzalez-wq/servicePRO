@@ -18,10 +18,14 @@ const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const material_control_schema_1 = require("./schemas/material-control.schema");
 const inventory_service_1 = require("../inventory/inventory.service");
+const notifications_service_1 = require("../notifications/notifications.service");
+const websocket_gateway_1 = require("../websocket/websocket.gateway");
 let MaterialControlService = class MaterialControlService {
-    constructor(materialControlModel, inventoryService) {
+    constructor(materialControlModel, inventoryService, notificationsService, wsGateway) {
         this.materialControlModel = materialControlModel;
         this.inventoryService = inventoryService;
+        this.notificationsService = notificationsService;
+        this.wsGateway = wsGateway;
     }
     async create(createDto, userId) {
         const control = new this.materialControlModel({
@@ -121,6 +125,15 @@ let MaterialControlService = class MaterialControlService {
             control.tiene_descuadre = true;
             control.valor_descuadre = material.cantidad_asignada - totalContabilizado;
             control.motivo_descuadre = returnData.motivo_perdida || 'Descuadre sin justificar';
+            const techId = control.tecnico_id.toString();
+            this.wsGateway.notifyDiscrepancy(id, techId, {
+                valor: control.valor_descuadre,
+                motivo: control.motivo_descuadre,
+            });
+            await this.notificationsService.notifyDiscrepancy(id, techId, {
+                valor: control.valor_descuadre,
+                motivo: control.motivo_descuadre,
+            });
         }
         if (material.cantidad_devuelta === material.cantidad_asignada - material.cantidad_utilizada) {
             material.estado = 'devuelto_total';
@@ -137,6 +150,8 @@ let MaterialControlService = class MaterialControlService {
         const todosDevueltos = control.materiales_asignados.every(m => m.estado === 'devuelto_total' || m.estado === 'completado');
         if (todosDevueltos) {
             control.estado_general = control.tiene_descuadre ? 'devolucion_pendiente' : 'devolucion_completada';
+            const techId = control.tecnico_id.toString();
+            await this.notificationsService.notifyMaterialsReturned(techId, control.materiales_asignados, id);
         }
         return control.save();
     }
@@ -184,7 +199,10 @@ exports.MaterialControlService = MaterialControlService;
 exports.MaterialControlService = MaterialControlService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, mongoose_1.InjectModel)(material_control_schema_1.MaterialControl.name)),
+    __param(2, (0, common_1.Inject)((0, common_1.forwardRef)(() => notifications_service_1.NotificationsService))),
     __metadata("design:paramtypes", [mongoose_2.Model,
-        inventory_service_1.InventoryService])
+        inventory_service_1.InventoryService,
+        notifications_service_1.NotificationsService,
+        websocket_gateway_1.WebSocketGatewayService])
 ], MaterialControlService);
 //# sourceMappingURL=material-control.service.js.map

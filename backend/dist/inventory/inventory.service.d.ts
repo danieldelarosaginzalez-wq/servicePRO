@@ -1,6 +1,8 @@
 import { Model } from 'mongoose';
 import { UserDocument } from '../users/schemas/user.schema';
 import { MaterialDocument } from '../materials/schemas/material.schema';
+import { NotificationsService } from '../notifications/notifications.service';
+import { WebSocketGatewayService } from '../websocket/websocket.gateway';
 export interface TechnicianInventoryItem {
     material_id: string;
     material: {
@@ -33,9 +35,11 @@ export interface InventoryMovement {
 export declare class InventoryService {
     private userModel;
     private materialModel;
+    private notificationsService;
+    private wsGateway;
     private technicianInventories;
     private inventoryMovements;
-    constructor(userModel: Model<UserDocument>, materialModel: Model<MaterialDocument>);
+    constructor(userModel: Model<UserDocument>, materialModel: Model<MaterialDocument>, notificationsService: NotificationsService, wsGateway: WebSocketGatewayService);
     getTechnicianInventory(technicianId: string): Promise<{
         success: boolean;
         data: {
