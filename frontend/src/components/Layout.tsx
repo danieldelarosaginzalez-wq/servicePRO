@@ -17,7 +17,7 @@ import {
     Menu,
     MenuItem,
     Divider,
-    Badge,
+    Tooltip,
 } from '@mui/material';
 import {
     Menu as MenuIcon,
@@ -29,10 +29,12 @@ import {
     AccountCircle,
     Logout,
     Settings,
-    Notifications,
     ReceiptLong,
+    Message as MessageIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import NotificationCenter from './NotificationCenter';
+import SendMessageDialog from './SendMessageDialog';
 
 const drawerWidth = 240;
 
@@ -42,6 +44,7 @@ const Layout: React.FC = () => {
     const { user, logout } = useAuth();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+    const [messageDialogOpen, setMessageDialogOpen] = useState(false);
 
     const handleDrawerToggle = () => {
         setMobileOpen(!mobileOpen);
@@ -125,11 +128,13 @@ const Layout: React.FC = () => {
                         {menuItems.find(item => item.path === location.pathname)?.text || 'ServiceOps Pro'}
                     </Typography>
 
-                    <IconButton color="inherit">
-                        <Badge badgeContent={4} color="error">
-                            <Notifications />
-                        </Badge>
-                    </IconButton>
+                    <Tooltip title="Enviar mensaje">
+                        <IconButton color="inherit" onClick={() => setMessageDialogOpen(true)}>
+                            <MessageIcon />
+                        </IconButton>
+                    </Tooltip>
+
+                    <NotificationCenter />
 
                     <IconButton
                         size="large"
@@ -222,6 +227,11 @@ const Layout: React.FC = () => {
                 <Toolbar />
                 <Outlet />
             </Box>
+
+            <SendMessageDialog
+                open={messageDialogOpen}
+                onClose={() => setMessageDialogOpen(false)}
+            />
         </Box>
     );
 };

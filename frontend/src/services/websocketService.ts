@@ -29,16 +29,29 @@ class WebSocketService {
 
     private setupEventListeners() {
         const events = [
+            // Órdenes
             'order-created',
             'order-assigned',
             'order-updated',
             'order-status-changed',
             'order-progress',
+            'order-completed',
+            'order-impossibility',
+            // Inventario
             'inventory-updated',
             'materials-assigned',
+            'materials-consumed',
+            'materials-discrepancy',
+            'low-stock',
+            // Reportes
             'visit-report-created',
+            // Notificaciones
             'notification',
+            'direct-message',
+            // Usuarios
             'online-users',
+            'technician-online',
+            'technician-offline',
         ];
 
         events.forEach(event => {

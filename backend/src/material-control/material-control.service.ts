@@ -1,14 +1,19 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { MaterialControl, MaterialControlDocument } from './schemas/material-control.schema';
 import { InventoryService } from '../inventory/inventory.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { WebSocketGatewayService } from '../websocket/websocket.gateway';
 
 @Injectable()
 export class MaterialControlService {
     constructor(
         @InjectModel(MaterialControl.name) private materialControlModel: Model<MaterialControlDocument>,
         private inventoryService: InventoryService,
+        @Inject(forwardRef(() => NotificationsService))
+        private notificationsService: NotificationsService,
+        private wsGateway: WebSocketGatewayService,
     ) { }
 
     async create(createDto: any, userId: string): Promise<MaterialControl> {
@@ -145,6 +150,17 @@ export class MaterialControlService {
             control.tiene_descuadre = true;
             control.valor_descuadre = material.cantidad_asignada - totalContabilizado;
             control.motivo_descuadre = returnData.motivo_perdida || 'Descuadre sin justificar';
+
+            // Notificar descuadre
+            const techId = control.tecnico_id.toString();
+            this.wsGateway.notifyDiscrepancy(id, techId, {
+                valor: control.valor_descuadre,
+                motivo: control.motivo_descuadre,
+            });
+            await this.notificationsService.notifyDiscrepancy(id, techId, {
+                valor: control.valor_descuadre,
+                motivo: control.motivo_descuadre,
+            });
         }
 
         // Actualizar estado del material
@@ -168,6 +184,14 @@ export class MaterialControlService {
 
         if (todosDevueltos) {
             control.estado_general = control.tiene_descuadre ? 'devolucion_pendiente' : 'devolucion_completada';
+
+            // Notificar devolución de materiales
+            const techId = control.tecnico_id.toString();
+            await this.notificationsService.notifyMaterialsReturned(
+                techId,
+                control.materiales_asignados,
+                id
+            );
         }
 
         return control.save();

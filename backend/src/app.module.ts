@@ -11,6 +11,7 @@ import { MaterialControlModule } from './material-control/material-control.modul
 import { VisitReportsModule } from './visit-reports/visit-reports.module';
 import { FilesModule } from './files/files.module';
 import { WebSocketModule } from './websocket/websocket.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
     imports: [
@@ -30,6 +31,7 @@ import { WebSocketModule } from './websocket/websocket.module';
         VisitReportsModule,
         FilesModule,
         WebSocketModule,
+        NotificationsModule,
     ],
 })
 export class AppModule { }

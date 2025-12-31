@@ -1,15 +1,20 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Order, OrderDocument } from './schemas/order.schema';
 import { Poliza, PolizaDocument } from '../polizas/schemas/poliza.schema';
 import { CreateOrderDto, UpdateOrderDto, AssignTechnicianDto } from './dto/order.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { WebSocketGatewayService } from '../websocket/websocket.gateway';
 
 @Injectable()
 export class OrdersService {
     constructor(
         @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
         @InjectModel(Poliza.name) private polizaModel: Model<PolizaDocument>,
+        @Inject(forwardRef(() => NotificationsService))
+        private notificationsService: NotificationsService,
+        private wsGateway: WebSocketGatewayService,
     ) { }
 
     async create(createOrderDto: CreateOrderDto): Promise<Order> {
@@ -43,7 +48,13 @@ export class OrdersService {
         delete orderData['ubicacion.lng'];
 
         const createdOrder = new this.orderModel(orderData);
-        return createdOrder.save();
+        const saved = await createdOrder.save();
+
+        // Notificar a analistas
+        this.wsGateway.notifyOrderCreated(saved);
+        await this.notificationsService.notifyOrderCreated(saved, saved.analista_id.toString());
+
+        return saved;
     }
 
     async findAll(query: any = {}): Promise<{ data: Order[]; total: number }> {
@@ -144,6 +155,14 @@ export class OrdersService {
             .populate('tecnico_id', 'nombre email')
             .exec();
 
+        // Notificar al técnico y analistas
+        this.wsGateway.notifyOrderAssigned(updatedOrder, assignDto.technicianId);
+        await this.notificationsService.notifyOrderAssigned(
+            updatedOrder,
+            assignDto.technicianId,
+            updatedOrder.analista_id?.toString() || ''
+        );
+
         return updatedOrder;
     }
 
@@ -174,6 +193,10 @@ export class OrdersService {
             .populate('analista_id', 'nombre email')
             .populate('tecnico_id', 'nombre email')
             .exec();
+
+        // Notificar que la orden fue iniciada
+        this.wsGateway.notifyOrderStatusChanged(updatedOrder);
+        await this.notificationsService.notifyOrderStarted(updatedOrder, userId);
 
         return updatedOrder;
     }
@@ -211,6 +234,10 @@ export class OrdersService {
             .populate('tecnico_id', 'nombre email')
             .exec();
 
+        // Notificar que la orden fue completada
+        this.wsGateway.notifyOrderCompleted(updatedOrder);
+        await this.notificationsService.notifyOrderCompleted(updatedOrder, userId);
+
         return updatedOrder;
     }
 
@@ -245,6 +272,14 @@ export class OrdersService {
             .populate('analista_id', 'nombre email')
             .populate('tecnico_id', 'nombre email')
             .exec();
+
+        // Notificar imposibilidad
+        this.wsGateway.notifyOrderImpossibility(updatedOrder);
+        await this.notificationsService.notifyOrderImpossibility(
+            updatedOrder,
+            userId,
+            impossibilityData.motivo
+        );
 
         return updatedOrder;
     }
@@ -339,6 +374,11 @@ export class OrdersService {
             .exec();
 
         console.log('✅ Orden actualizada exitosamente');
+
+        // Notificar progreso
+        this.wsGateway.notifyOrderProgress(updatedOrder, fase);
+        await this.notificationsService.notifyOrderProgress(updatedOrder, fase, userId);
+
         return updatedOrder;
     }
 
