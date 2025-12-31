@@ -3,13 +3,21 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Argumento para la URL del API (se pasa durante el build)
+ARG REACT_APP_API_URL=https://servicepro.sliplane.app/api
+
+# Establecer como variable de entorno para el build
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps && npm cache clean --force
+RUN npm install --legacy-peer-deps && npm cache clean --force
 
 COPY . .
 RUN npm run build
 
-# Crear nginx.conf inline para evitar problemas de contexto
+FROM nginx:alpine
+
+# Configuración de nginx
 RUN echo 'server { \
     listen 80; \
     server_name localhost; \
@@ -24,11 +32,8 @@ RUN echo 'server { \
         expires 1y; \
         add_header Cache-Control "public, immutable"; \
     } \
-}' > /app/nginx.conf
+}' > /etc/nginx/conf.d/default.conf
 
-FROM nginx:alpine
-
-COPY --from=builder /app/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/build /usr/share/nginx/html
 
 EXPOSE 80
