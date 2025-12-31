@@ -29,7 +29,7 @@ import { ExcelGrid } from '../components/ExcelGrid';
 import { AssignMaterialsDialog } from '../components/AssignMaterialsDialog';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../contexts/AuthContext';
-import { InventoryTechnician } from '../../../shared/types';
+import { InventoryTechnician } from '../types';
 
 // Type definitions for API responses
 interface TechnicianData {

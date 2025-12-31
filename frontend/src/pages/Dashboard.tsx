@@ -34,7 +34,7 @@ import { TechnicianWorkCard } from '../components/TechnicianWorkCard';
 import { WorkProgressDialog } from '../components/WorkProgressDialog';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../contexts/AuthContext';
-import { Order } from '../../../shared/types';
+import { Order } from '../types';
 
 interface StatCard {
     title: string;

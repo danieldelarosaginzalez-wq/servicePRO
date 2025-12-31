@@ -23,7 +23,7 @@ import {
 } from '@mui/material';
 import { Add, Delete } from '@mui/icons-material';
 import { apiService } from '../services/apiService';
-import { Material } from '../../../shared/types';
+import { Material } from '../types';
 
 interface AssignMaterialsDialogProps {
     open: boolean;

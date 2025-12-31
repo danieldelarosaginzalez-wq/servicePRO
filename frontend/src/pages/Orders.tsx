@@ -16,7 +16,7 @@ import { AssignTechnicianDialog } from '../components/AssignTechnicianDialog';
 import { WorkProgressDialog } from '../components/WorkProgressDialog';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../contexts/AuthContext';
-import { Order } from '../../../shared/types';
+import { Order } from '../types';
 
 // Type definitions for API responses
 interface TechnicianData {

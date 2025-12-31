@@ -20,7 +20,7 @@ import { Add, Edit, Delete, Assignment, LocationOn } from '@mui/icons-material';
 import { ExcelGrid } from '../components/ExcelGrid';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../contexts/AuthContext';
-import { Poliza } from '../../../shared/types';
+import { Poliza } from '../types';
 
 const Polizas: React.FC = () => {
     const { user } = useAuth();

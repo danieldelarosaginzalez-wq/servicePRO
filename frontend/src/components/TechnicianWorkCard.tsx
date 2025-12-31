@@ -21,7 +21,7 @@ import {
     PhotoCamera,
     Inventory,
 } from '@mui/icons-material';
-import { Order } from '../../../shared/types';
+import { Order } from '../types';
 
 interface TechnicianWorkCardProps {
     order: Order;

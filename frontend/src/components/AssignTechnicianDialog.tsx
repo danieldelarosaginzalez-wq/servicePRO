@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import { Assignment, Person } from '@mui/icons-material';
 import { apiService } from '../services/apiService';
-import { Order } from '../../../shared/types';
+import { Order } from '../types';
 
 interface AssignTechnicianDialogProps {
     open: boolean;

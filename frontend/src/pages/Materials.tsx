@@ -20,7 +20,7 @@ import { Add, Edit, Delete, Inventory, AttachMoney } from '@mui/icons-material';
 import { ExcelGrid } from '../components/ExcelGrid';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../contexts/AuthContext';
-import { Material } from '../../../shared/types';
+import { Material } from '../types';
 
 const Materials: React.FC = () => {
     const { user } = useAuth();

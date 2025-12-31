@@ -15,7 +15,7 @@ import {
     Grid,
 } from '@mui/material';
 import { apiService } from '../services/apiService';
-import { Poliza } from '../../../shared/types';
+import { Poliza } from '../types';
 
 interface CreateOrderDialogProps {
     open: boolean;
