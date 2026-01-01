@@ -19,8 +19,9 @@ import {
     Alert,
     Snackbar,
 } from '@mui/material';
-import { Add, Edit, Delete, Assignment, LocationOn } from '@mui/icons-material';
+import { Add, Edit, Delete, Assignment, LocationOn, CloudUpload } from '@mui/icons-material';
 import { ExcelGrid } from '../components/ExcelGrid';
+import { ExcelImporter } from '../components/ExcelImporter';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../contexts/AuthContext';
 import { Poliza } from '../types';
@@ -31,6 +32,7 @@ const Polizas: React.FC = () => {
     const queryClient = useQueryClient();
     const [selectedPolizas, setSelectedPolizas] = useState<Poliza[]>([]);
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [importerOpen, setImporterOpen] = useState(false);
     const [editingPoliza, setEditingPoliza] = useState<Poliza | null>(null);
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
         open: false,
@@ -337,14 +339,23 @@ const Polizas: React.FC = () => {
                 <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Box>
                         {user?.rol === 'analista' && (
-                            <Button
-                                variant="contained"
-                                startIcon={<Add />}
-                                onClick={handleCreatePoliza}
-                                sx={{ mr: 2 }}
-                            >
-                                Nueva Póliza
-                            </Button>
+                            <>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<Add />}
+                                    onClick={handleCreatePoliza}
+                                    sx={{ mr: 2 }}
+                                >
+                                    Nueva Póliza
+                                </Button>
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<CloudUpload />}
+                                    onClick={() => setImporterOpen(true)}
+                                >
+                                    Importar Excel
+                                </Button>
+                            </>
                         )}
                     </Box>
                 </Box>
@@ -468,6 +479,16 @@ const Polizas: React.FC = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Importador de Excel */}
+            <ExcelImporter
+                open={importerOpen}
+                onClose={() => {
+                    setImporterOpen(false);
+                    refetch();
+                }}
+                defaultSchema="polizas"
+            />
 
             {/* Snackbar para notificaciones */}
             <Snackbar
