@@ -381,4 +381,75 @@ export class OrdersService {
         const count = await this.orderModel.countDocuments();
         return `OT-${String(count + 1).padStart(6, '0')}`;
     }
+
+    // Estadísticas de órdenes
+    async getStats(query: any = {}): Promise<any> {
+        const { startDate, endDate } = query;
+
+        const dateFilter: any = {};
+        if (startDate) dateFilter.$gte = new Date(startDate);
+        if (endDate) dateFilter.$lte = new Date(endDate);
+
+        const matchStage: any = {};
+        if (Object.keys(dateFilter).length > 0) {
+            matchStage.fecha_creacion = dateFilter;
+        }
+
+        // Estadísticas por estado
+        const byStatus = await this.orderModel.aggregate([
+            { $match: matchStage },
+            { $group: { _id: '$estado', count: { $sum: 1 } } }
+        ]);
+
+        // Estadísticas por tipo de trabajo
+        const byType = await this.orderModel.aggregate([
+            { $match: matchStage },
+            { $group: { _id: '$tipo_trabajo', count: { $sum: 1 } } }
+        ]);
+
+        // Estadísticas por técnico
+        const byTechnician = await this.orderModel.aggregate([
+            { $match: { ...matchStage, tecnico_id: { $ne: null } } },
+            { $group: { _id: '$tecnico_id', total: { $sum: 1 }, finalizadas: { $sum: { $cond: [{ $eq: ['$estado', 'finalizada'] }, 1, 0] } } } },
+            { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'tecnico' } },
+            { $unwind: '$tecnico' },
+            { $project: { _id: 1, nombre: '$tecnico.nombre', total: 1, finalizadas: 1, eficiencia: { $multiply: [{ $divide: ['$finalizadas', '$total'] }, 100] } } },
+            { $sort: { finalizadas: -1 } },
+            { $limit: 10 }
+        ]);
+
+        // Tendencia mensual (últimos 6 meses)
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+        const monthlyTrend = await this.orderModel.aggregate([
+            { $match: { fecha_creacion: { $gte: sixMonthsAgo } } },
+            {
+                $group: {
+                    _id: { year: { $year: '$fecha_creacion' }, month: { $month: '$fecha_creacion' } },
+                    creadas: { $sum: 1 },
+                    finalizadas: { $sum: { $cond: [{ $eq: ['$estado', 'finalizada'] }, 1, 0] } },
+                    imposibilidad: { $sum: { $cond: [{ $eq: ['$estado', 'imposibilidad'] }, 1, 0] } }
+                }
+            },
+            { $sort: { '_id.year': 1, '_id.month': 1 } }
+        ]);
+
+        // Formatear tendencia mensual
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        const formattedTrend = monthlyTrend.map(item => ({
+            mes: monthNames[item._id.month - 1],
+            creadas: item.creadas,
+            finalizadas: item.finalizadas,
+            imposibilidad: item.imposibilidad
+        }));
+
+        return {
+            byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
+            byType: byType.map(item => ({ tipo: item._id, cantidad: item.count })),
+            byTechnician,
+            monthlyTrend: formattedTrend,
+            total: await this.orderModel.countDocuments(matchStage)
+        };
+    }
 }

@@ -21,6 +21,11 @@ export class MaterialsController {
         return this.materialsService.findAll(query);
     }
 
+    @Get('stats/dashboard')
+    getStats() {
+        return this.materialsService.getStats();
+    }
+
     @Get('my-inventory')
     getMyInventory() {
         // Simulación de inventario del técnico

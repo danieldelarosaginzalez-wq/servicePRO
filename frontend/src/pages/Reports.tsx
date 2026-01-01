@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useQuery } from 'react-query';
 import {
     Box,
@@ -19,6 +19,7 @@ import {
     TableHead,
     TableRow,
     Chip,
+    CircularProgress,
 } from '@mui/material';
 import {
     BarChart,
@@ -35,7 +36,7 @@ import {
     Line,
     ResponsiveContainer,
 } from 'recharts';
-import { Download, DateRange, Assessment } from '@mui/icons-material';
+import { Download, DateRange, Assessment, Refresh } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import { apiService } from '../services/apiService';
 
@@ -60,138 +61,203 @@ function TabPanel(props: TabPanelProps) {
     );
 }
 
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82ca9d'];
+
 const Reports: React.FC = () => {
     const [tabValue, setTabValue] = useState(0);
     const [dateRange, setDateRange] = useState({
         start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         end: new Date().toISOString().split('T')[0],
     });
-    const [reportType, setReportType] = useState('');
-    const [reportFrequency, setReportFrequency] = useState('');
-    const [reportEmail, setReportEmail] = useState('');
 
-    // Consultas para datos de reportes
-    const { data: ordersData } = useQuery(
+    // Consultas para datos reales
+    const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery(
         ['reports-orders', dateRange],
         () => apiService.getOrders({ limit: 1000 })
     );
 
-    const { data: materialsData } = useQuery(
+    const { data: statsData, isLoading: statsLoading, refetch: refetchStats } = useQuery(
+        ['orders-stats', dateRange],
+        () => apiService.getOrdersStats({ startDate: dateRange.start, endDate: dateRange.end })
+    );
+
+    const { data: materialsData, isLoading: materialsLoading } = useQuery(
         ['reports-materials'],
         () => apiService.getMaterials({ limit: 1000 })
     );
 
-    const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    const { data: techniciansData } = useQuery(
+        ['reports-technicians'],
+        () => apiService.getUsers({ rol: 'tecnico', estado: 'activo', limit: 100 })
+    );
+
+    const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
         setTabValue(newValue);
     };
 
-    // Datos para gráficos
-    const getOrdersByStatus = () => {
-        if (!ordersData?.data) return [];
+    const handleRefresh = () => {
+        refetchOrders();
+        refetchStats();
+    };
 
+    // Calcular datos para gráficos desde datos reales
+    const ordersByStatus = useMemo(() => {
+        if (!ordersData?.data) return [];
         const statusCount = ordersData.data.reduce((acc: any, order: any) => {
-            acc[order.estado] = (acc[order.estado] || 0) + 1;
+            const status = order.estado || 'sin_estado';
+            acc[status] = (acc[status] || 0) + 1;
             return acc;
         }, {});
+        return Object.entries(statusCount).map(([name, value]) => ({ name, value }));
+    }, [ordersData]);
 
-        return Object.entries(statusCount).map(([status, count]) => ({
-            name: status,
-            value: count,
-        }));
-    };
-
-    const getOrdersByType = () => {
+    const ordersByType = useMemo(() => {
         if (!ordersData?.data) return [];
-
         const typeCount = ordersData.data.reduce((acc: any, order: any) => {
-            acc[order.tipo_trabajo] = (acc[order.tipo_trabajo] || 0) + 1;
+            const tipo = order.tipo_trabajo || 'sin_tipo';
+            acc[tipo] = (acc[tipo] || 0) + 1;
             return acc;
         }, {});
+        return Object.entries(typeCount).map(([tipo, cantidad]) => ({ tipo, cantidad }));
+    }, [ordersData]);
 
-        return Object.entries(typeCount).map(([type, count]) => ({
-            tipo: type,
-            cantidad: count,
-        }));
-    };
-
-    const getOrdersTrend = () => {
+    // Tendencia mensual real basada en fecha_creacion
+    const ordersTrend = useMemo(() => {
         if (!ordersData?.data) return [];
 
-        // Simular datos de tendencia por mes
-        const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
-        return months.map(month => ({
-            mes: month,
-            creadas: Math.floor(Math.random() * 50) + 10,
-            finalizadas: Math.floor(Math.random() * 40) + 5,
-            imposibilidad: Math.floor(Math.random() * 5) + 1,
-        }));
-    };
+        const monthlyData: { [key: string]: { creadas: number; finalizadas: number; imposibilidad: number } } = {};
+        const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-    const getMaterialsStats = () => {
+        ordersData.data.forEach((order: any) => {
+            const date = new Date(order.fecha_creacion);
+            const monthKey = `${months[date.getMonth()]} ${date.getFullYear()}`;
+
+            if (!monthlyData[monthKey]) {
+                monthlyData[monthKey] = { creadas: 0, finalizadas: 0, imposibilidad: 0 };
+            }
+
+            monthlyData[monthKey].creadas++;
+            if (order.estado === 'finalizada' || order.estado === 'cerrada') {
+                monthlyData[monthKey].finalizadas++;
+            }
+            if (order.estado === 'imposibilidad') {
+                monthlyData[monthKey].imposibilidad++;
+            }
+        });
+
+        // Ordenar por fecha y tomar los últimos 6 meses
+        return Object.entries(monthlyData)
+            .map(([mes, data]) => ({ mes, ...data }))
+            .slice(-6);
+    }, [ordersData]);
+
+    // Estadísticas de materiales reales
+    const materialsStats = useMemo(() => {
         if (!materialsData?.data) return [];
-
         const categoryCount = materialsData.data.reduce((acc: any, material: any) => {
-            acc[material.categoria] = (acc[material.categoria] || 0) + 1;
+            const cat = material.categoria || 'Sin categoría';
+            acc[cat] = (acc[cat] || 0) + 1;
             return acc;
         }, {});
+        return Object.entries(categoryCount).map(([categoria, cantidad]) => ({ categoria, cantidad }));
+    }, [materialsData]);
 
-        return Object.entries(categoryCount).map(([category, count]) => ({
-            categoria: category,
-            cantidad: count,
-        }));
-    };
+    const materialsStatsNumbers = useMemo(() => {
+        if (!materialsData?.data) return { total: 0, activos: 0, bajoStock: 0 };
+        const materials = materialsData.data;
+        return {
+            total: materials.length,
+            activos: materials.filter((m: any) => m.estado === 'activo').length,
+            bajoStock: materials.filter((m: any) => (m.stock_actual || 0) < (m.stock_minimo || 10)).length,
+        };
+    }, [materialsData]);
 
-    const getTopTechnicians = () => {
-        // Datos simulados de rendimiento de técnicos
-        return [
-            { nombre: 'Juan Pérez', ordenes_completadas: 45, eficiencia: 92 },
-            { nombre: 'María García', ordenes_completadas: 38, eficiencia: 88 },
-            { nombre: 'Carlos López', ordenes_completadas: 42, eficiencia: 85 },
-            { nombre: 'Ana Rodríguez', ordenes_completadas: 35, eficiencia: 90 },
-            { nombre: 'Luis Martínez', ordenes_completadas: 40, eficiencia: 87 },
-        ];
-    };
+    // Rendimiento real de técnicos
+    const techniciansPerformance = useMemo(() => {
+        if (!ordersData?.data || !techniciansData?.data) return [];
 
-    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+        const techStats: { [key: string]: { nombre: string; total: number; completadas: number } } = {};
 
-    const ordersByStatus = getOrdersByStatus();
-    const ordersByType = getOrdersByType();
-    const ordersTrend = getOrdersTrend();
-    const materialsStats = getMaterialsStats();
-    const topTechnicians = getTopTechnicians();
+        // Inicializar con todos los técnicos
+        techniciansData.data.forEach((tech: any) => {
+            techStats[tech._id] = { nombre: tech.nombre, total: 0, completadas: 0 };
+        });
+
+        // Contar órdenes por técnico
+        ordersData.data.forEach((order: any) => {
+            const techId = typeof order.tecnico_id === 'object' ? order.tecnico_id?._id : order.tecnico_id;
+            if (techId && techStats[techId]) {
+                techStats[techId].total++;
+                if (order.estado === 'finalizada' || order.estado === 'cerrada') {
+                    techStats[techId].completadas++;
+                }
+            }
+        });
+
+        return Object.values(techStats)
+            .map(tech => ({
+                nombre: tech.nombre,
+                ordenes_completadas: tech.completadas,
+                ordenes_totales: tech.total,
+                eficiencia: tech.total > 0 ? Math.round((tech.completadas / tech.total) * 100) : 0,
+            }))
+            .filter(tech => tech.ordenes_totales > 0)
+            .sort((a, b) => b.ordenes_completadas - a.ordenes_completadas);
+    }, [ordersData, techniciansData]);
 
     // Funciones de exportación
     const exportOrders = useCallback(() => {
         if (!ordersData?.data) return;
+        const exportData = ordersData.data.map((order: any) => ({
+            Código: order.codigo,
+            Póliza: order.poliza_number,
+            Cliente: order.cliente,
+            Dirección: order.direccion,
+            Tipo: order.tipo_trabajo,
+            Estado: order.estado,
+            Técnico: order.tecnico_id?.nombre || 'Sin asignar',
+            'Fecha Creación': order.fecha_creacion ? new Date(order.fecha_creacion).toLocaleDateString() : '',
+            'Fecha Finalización': order.fecha_finalizacion ? new Date(order.fecha_finalizacion).toLocaleDateString() : '',
+        }));
 
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(ordersData.data);
+        const ws = XLSX.utils.json_to_sheet(exportData);
         XLSX.utils.book_append_sheet(wb, ws, 'Ordenes_de_Trabajo');
-
-        const fileName = `Ordenes_de_Trabajo_${new Date().toISOString().split('T')[0]}.xlsx`;
-        XLSX.writeFile(wb, fileName);
+        XLSX.writeFile(wb, `Ordenes_${new Date().toISOString().split('T')[0]}.xlsx`);
     }, [ordersData]);
 
     const exportMaterials = useCallback(() => {
         if (!materialsData?.data) return;
+        const exportData = materialsData.data.map((material: any) => ({
+            Código: material.codigo,
+            Nombre: material.nombre,
+            Categoría: material.categoria,
+            'Unidad Medida': material.unidad_medida,
+            'Stock Actual': material.stock_actual || 0,
+            'Stock Mínimo': material.stock_minimo || 0,
+            Estado: material.estado,
+        }));
 
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(materialsData.data);
-        XLSX.utils.book_append_sheet(wb, ws, 'Inventario_Materiales');
-
-        const fileName = `Inventario_Materiales_${new Date().toISOString().split('T')[0]}.xlsx`;
-        XLSX.writeFile(wb, fileName);
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Materiales');
+        XLSX.writeFile(wb, `Materiales_${new Date().toISOString().split('T')[0]}.xlsx`);
     }, [materialsData]);
 
     const exportTechniciansPerformance = useCallback(() => {
-        const techniciansData = getTopTechnicians();
+        if (!techniciansPerformance.length) return;
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(techniciansData);
+        const ws = XLSX.utils.json_to_sheet(techniciansPerformance.map(t => ({
+            Técnico: t.nombre,
+            'Órdenes Completadas': t.ordenes_completadas,
+            'Órdenes Totales': t.ordenes_totales,
+            'Eficiencia (%)': t.eficiencia,
+        })));
         XLSX.utils.book_append_sheet(wb, ws, 'Rendimiento_Tecnicos');
+        XLSX.writeFile(wb, `Rendimiento_Tecnicos_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }, [techniciansPerformance]);
 
-        const fileName = `Rendimiento_Tecnicos_${new Date().toISOString().split('T')[0]}.xlsx`;
-        XLSX.writeFile(wb, fileName);
-    }, []);
+    const isLoading = ordersLoading || statsLoading || materialsLoading;
 
     return (
         <Box sx={{ width: '100%' }}>
@@ -213,6 +279,7 @@ const Reports: React.FC = () => {
                     value={dateRange.start}
                     onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
                     InputLabelProps={{ shrink: true }}
+                    size="small"
                 />
                 <TextField
                     label="Fecha Fin"
@@ -220,79 +287,104 @@ const Reports: React.FC = () => {
                     value={dateRange.end}
                     onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
                     InputLabelProps={{ shrink: true }}
+                    size="small"
                 />
-                <Button variant="outlined" startIcon={<Assessment />}>
+                <Button
+                    variant="outlined"
+                    startIcon={isLoading ? <CircularProgress size={16} /> : <Refresh />}
+                    onClick={handleRefresh}
+                    disabled={isLoading}
+                >
                     Actualizar
                 </Button>
+                {ordersData?.data && (
+                    <Chip label={`${ordersData.data.length} órdenes`} color="primary" variant="outlined" />
+                )}
             </Box>
 
             {/* Reporte de Órdenes */}
             <TabPanel value={tabValue} index={0}>
                 <Grid container spacing={3}>
-                    {/* Resumen de estados */}
                     <Grid item xs={12} md={6}>
                         <Paper sx={{ p: 2 }}>
                             <Typography variant="h6" gutterBottom>
                                 Órdenes por Estado
                             </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <PieChart>
-                                    <Pie
-                                        data={ordersByStatus}
-                                        cx="50%"
-                                        cy="50%"
-                                        labelLine={false}
-                                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                        outerRadius={80}
-                                        fill="#8884d8"
-                                        dataKey="value"
-                                    >
-                                        {ordersByStatus.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip />
-                                </PieChart>
-                            </ResponsiveContainer>
+                            {ordersByStatus.length > 0 ? (
+                                <ResponsiveContainer width="100%" height={300}>
+                                    <PieChart>
+                                        <Pie
+                                            data={ordersByStatus}
+                                            cx="50%"
+                                            cy="50%"
+                                            labelLine={false}
+                                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                            outerRadius={80}
+                                            fill="#8884d8"
+                                            dataKey="value"
+                                        >
+                                            {ordersByStatus.map((_entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip />
+                                        <Legend />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <Box sx={{ textAlign: 'center', py: 4 }}>
+                                    <Typography color="textSecondary">No hay datos disponibles</Typography>
+                                </Box>
+                            )}
                         </Paper>
                     </Grid>
 
-                    {/* Órdenes por tipo */}
                     <Grid item xs={12} md={6}>
                         <Paper sx={{ p: 2 }}>
                             <Typography variant="h6" gutterBottom>
                                 Órdenes por Tipo de Trabajo
                             </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={ordersByType}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="tipo" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Bar dataKey="cantidad" fill="#8884d8" />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            {ordersByType.length > 0 ? (
+                                <ResponsiveContainer width="100%" height={300}>
+                                    <BarChart data={ordersByType}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="tipo" />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Bar dataKey="cantidad" fill="#8884d8" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <Box sx={{ textAlign: 'center', py: 4 }}>
+                                    <Typography color="textSecondary">No hay datos disponibles</Typography>
+                                </Box>
+                            )}
                         </Paper>
                     </Grid>
 
-                    {/* Tendencia mensual */}
                     <Grid item xs={12}>
                         <Paper sx={{ p: 2 }}>
                             <Typography variant="h6" gutterBottom>
                                 Tendencia Mensual de Órdenes
                             </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <LineChart data={ordersTrend}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="mes" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Legend />
-                                    <Line type="monotone" dataKey="creadas" stroke="#8884d8" name="Creadas" />
-                                    <Line type="monotone" dataKey="finalizadas" stroke="#82ca9d" name="Finalizadas" />
-                                    <Line type="monotone" dataKey="imposibilidad" stroke="#ff7300" name="Imposibilidad" />
-                                </LineChart>
-                            </ResponsiveContainer>
+                            {ordersTrend.length > 0 ? (
+                                <ResponsiveContainer width="100%" height={300}>
+                                    <LineChart data={ordersTrend}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="mes" />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Legend />
+                                        <Line type="monotone" dataKey="creadas" stroke="#8884d8" name="Creadas" strokeWidth={2} />
+                                        <Line type="monotone" dataKey="finalizadas" stroke="#82ca9d" name="Finalizadas" strokeWidth={2} />
+                                        <Line type="monotone" dataKey="imposibilidad" stroke="#ff7300" name="Imposibilidad" strokeWidth={2} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <Box sx={{ textAlign: 'center', py: 4 }}>
+                                    <Typography color="textSecondary">No hay datos de tendencia disponibles</Typography>
+                                </Box>
+                            )}
                         </Paper>
                     </Grid>
                 </Grid>
@@ -306,15 +398,21 @@ const Reports: React.FC = () => {
                             <Typography variant="h6" gutterBottom>
                                 Materiales por Categoría
                             </Typography>
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={materialsStats}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="categoria" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Bar dataKey="cantidad" fill="#82ca9d" />
-                                </BarChart>
-                            </ResponsiveContainer>
+                            {materialsStats.length > 0 ? (
+                                <ResponsiveContainer width="100%" height={300}>
+                                    <BarChart data={materialsStats}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="categoria" />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Bar dataKey="cantidad" fill="#82ca9d" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <Box sx={{ textAlign: 'center', py: 4 }}>
+                                    <Typography color="textSecondary">No hay datos disponibles</Typography>
+                                </Box>
+                            )}
                         </Paper>
                     </Grid>
 
@@ -327,7 +425,7 @@ const Reports: React.FC = () => {
                                 <Card sx={{ mb: 2 }}>
                                     <CardContent>
                                         <Typography variant="h4" color="primary">
-                                            {materialsData?.data?.length || 0}
+                                            {materialsStatsNumbers.total}
                                         </Typography>
                                         <Typography variant="body2" color="textSecondary">
                                             Total de Materiales
@@ -337,7 +435,7 @@ const Reports: React.FC = () => {
                                 <Card sx={{ mb: 2 }}>
                                     <CardContent>
                                         <Typography variant="h4" color="success.main">
-                                            {materialsData?.data?.filter((m: any) => m.estado === 'activo').length || 0}
+                                            {materialsStatsNumbers.activos}
                                         </Typography>
                                         <Typography variant="body2" color="textSecondary">
                                             Materiales Activos
@@ -347,7 +445,7 @@ const Reports: React.FC = () => {
                                 <Card>
                                     <CardContent>
                                         <Typography variant="h4" color="warning.main">
-                                            {Math.floor(Math.random() * 10) + 5}
+                                            {materialsStatsNumbers.bajoStock}
                                         </Typography>
                                         <Typography variant="body2" color="textSecondary">
                                             Materiales Bajo Stock
@@ -366,40 +464,72 @@ const Reports: React.FC = () => {
                     <Grid item xs={12}>
                         <Paper sx={{ p: 2 }}>
                             <Typography variant="h6" gutterBottom>
-                                Rendimiento de Técnicos
+                                Rendimiento de Técnicos (Datos Reales)
                             </Typography>
-                            <TableContainer>
-                                <Table>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>Técnico</TableCell>
-                                            <TableCell align="right">Órdenes Completadas</TableCell>
-                                            <TableCell align="right">Eficiencia (%)</TableCell>
-                                            <TableCell align="center">Estado</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {topTechnicians.map((tech, index) => (
-                                            <TableRow key={index}>
-                                                <TableCell component="th" scope="row">
-                                                    {tech.nombre}
-                                                </TableCell>
-                                                <TableCell align="right">{tech.ordenes_completadas}</TableCell>
-                                                <TableCell align="right">{tech.eficiencia}%</TableCell>
-                                                <TableCell align="center">
-                                                    <Chip
-                                                        label={tech.eficiencia >= 90 ? 'Excelente' : tech.eficiencia >= 80 ? 'Bueno' : 'Regular'}
-                                                        color={tech.eficiencia >= 90 ? 'success' : tech.eficiencia >= 80 ? 'primary' : 'warning'}
-                                                        size="small"
-                                                    />
-                                                </TableCell>
+                            {techniciansPerformance.length > 0 ? (
+                                <TableContainer>
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell>Técnico</TableCell>
+                                                <TableCell align="right">Órdenes Completadas</TableCell>
+                                                <TableCell align="right">Órdenes Totales</TableCell>
+                                                <TableCell align="right">Eficiencia (%)</TableCell>
+                                                <TableCell align="center">Estado</TableCell>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
+                                        </TableHead>
+                                        <TableBody>
+                                            {techniciansPerformance.map((tech, index) => (
+                                                <TableRow key={index}>
+                                                    <TableCell component="th" scope="row">
+                                                        {tech.nombre}
+                                                    </TableCell>
+                                                    <TableCell align="right">{tech.ordenes_completadas}</TableCell>
+                                                    <TableCell align="right">{tech.ordenes_totales}</TableCell>
+                                                    <TableCell align="right">{tech.eficiencia}%</TableCell>
+                                                    <TableCell align="center">
+                                                        <Chip
+                                                            label={tech.eficiencia >= 90 ? 'Excelente' : tech.eficiencia >= 70 ? 'Bueno' : tech.eficiencia >= 50 ? 'Regular' : 'Bajo'}
+                                                            color={tech.eficiencia >= 90 ? 'success' : tech.eficiencia >= 70 ? 'primary' : tech.eficiencia >= 50 ? 'warning' : 'error'}
+                                                            size="small"
+                                                        />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : (
+                                <Box sx={{ textAlign: 'center', py: 4 }}>
+                                    <Typography color="textSecondary">
+                                        No hay datos de rendimiento disponibles. Los técnicos aparecerán aquí cuando tengan órdenes asignadas.
+                                    </Typography>
+                                </Box>
+                            )}
                         </Paper>
                     </Grid>
+
+                    {/* Gráfico de barras de rendimiento */}
+                    {techniciansPerformance.length > 0 && (
+                        <Grid item xs={12}>
+                            <Paper sx={{ p: 2 }}>
+                                <Typography variant="h6" gutterBottom>
+                                    Comparativa de Órdenes por Técnico
+                                </Typography>
+                                <ResponsiveContainer width="100%" height={300}>
+                                    <BarChart data={techniciansPerformance.slice(0, 10)}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="nombre" />
+                                        <YAxis />
+                                        <Tooltip />
+                                        <Legend />
+                                        <Bar dataKey="ordenes_completadas" fill="#82ca9d" name="Completadas" />
+                                        <Bar dataKey="ordenes_totales" fill="#8884d8" name="Totales" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </Paper>
+                        </Grid>
+                    )}
                 </Grid>
             </TabPanel>
 
@@ -409,7 +539,7 @@ const Reports: React.FC = () => {
                     <Grid item xs={12} md={6}>
                         <Paper sx={{ p: 3 }}>
                             <Typography variant="h6" gutterBottom>
-                                Exportar Datos
+                                Exportar Datos a Excel
                             </Typography>
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                 <Button
@@ -417,31 +547,27 @@ const Reports: React.FC = () => {
                                     startIcon={<Download />}
                                     onClick={exportOrders}
                                     fullWidth
+                                    disabled={!ordersData?.data?.length}
                                 >
-                                    Exportar Órdenes de Trabajo
+                                    Exportar Órdenes de Trabajo ({ordersData?.data?.length || 0})
                                 </Button>
                                 <Button
                                     variant="outlined"
                                     startIcon={<Download />}
                                     onClick={exportMaterials}
                                     fullWidth
+                                    disabled={!materialsData?.data?.length}
                                 >
-                                    Exportar Inventario de Materiales
-                                </Button>
-                                <Button
-                                    variant="outlined"
-                                    startIcon={<Download />}
-                                    fullWidth
-                                >
-                                    Exportar Movimientos de Inventario
+                                    Exportar Inventario de Materiales ({materialsData?.data?.length || 0})
                                 </Button>
                                 <Button
                                     variant="outlined"
                                     startIcon={<Download />}
                                     onClick={exportTechniciansPerformance}
                                     fullWidth
+                                    disabled={!techniciansPerformance.length}
                                 >
-                                    Exportar Rendimiento de Técnicos
+                                    Exportar Rendimiento de Técnicos ({techniciansPerformance.length})
                                 </Button>
                             </Box>
                         </Paper>
@@ -450,44 +576,54 @@ const Reports: React.FC = () => {
                     <Grid item xs={12} md={6}>
                         <Paper sx={{ p: 3 }}>
                             <Typography variant="h6" gutterBottom>
-                                Reportes Programados
+                                Resumen del Período
                             </Typography>
                             <Typography variant="body2" color="textSecondary" gutterBottom>
-                                Configure reportes automáticos que se enviarán por correo electrónico.
+                                Datos del {dateRange.start} al {dateRange.end}
                             </Typography>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-                                <TextField
-                                    select
-                                    label="Tipo de Reporte"
-                                    value={reportType}
-                                    onChange={(e) => setReportType(e.target.value)}
-                                    fullWidth
-                                >
-                                    <MenuItem value="orders">Órdenes de Trabajo</MenuItem>
-                                    <MenuItem value="materials">Inventario</MenuItem>
-                                    <MenuItem value="performance">Rendimiento</MenuItem>
-                                </TextField>
-                                <TextField
-                                    select
-                                    label="Frecuencia"
-                                    value={reportFrequency}
-                                    onChange={(e) => setReportFrequency(e.target.value)}
-                                    fullWidth
-                                >
-                                    <MenuItem value="daily">Diario</MenuItem>
-                                    <MenuItem value="weekly">Semanal</MenuItem>
-                                    <MenuItem value="monthly">Mensual</MenuItem>
-                                </TextField>
-                                <TextField
-                                    label="Correo Electrónico"
-                                    type="email"
-                                    value={reportEmail}
-                                    onChange={(e) => setReportEmail(e.target.value)}
-                                    fullWidth
-                                />
-                                <Button variant="contained">
-                                    Programar Reporte
-                                </Button>
+                            <Box sx={{ mt: 2 }}>
+                                <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                        <Card variant="outlined">
+                                            <CardContent>
+                                                <Typography variant="h5" color="primary">
+                                                    {ordersData?.data?.length || 0}
+                                                </Typography>
+                                                <Typography variant="body2">Total Órdenes</Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Card variant="outlined">
+                                            <CardContent>
+                                                <Typography variant="h5" color="success.main">
+                                                    {ordersData?.data?.filter((o: any) => o.estado === 'finalizada' || o.estado === 'cerrada').length || 0}
+                                                </Typography>
+                                                <Typography variant="body2">Finalizadas</Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Card variant="outlined">
+                                            <CardContent>
+                                                <Typography variant="h5" color="warning.main">
+                                                    {ordersData?.data?.filter((o: any) => o.estado === 'en_proceso').length || 0}
+                                                </Typography>
+                                                <Typography variant="body2">En Proceso</Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Card variant="outlined">
+                                            <CardContent>
+                                                <Typography variant="h5" color="error.main">
+                                                    {ordersData?.data?.filter((o: any) => o.estado === 'imposibilidad').length || 0}
+                                                </Typography>
+                                                <Typography variant="body2">Imposibilidad</Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                </Grid>
                             </Box>
                         </Paper>
                     </Grid>

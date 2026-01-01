@@ -68,6 +68,7 @@ class ApiService {
     getPoliza(id: string) { return this.get(`/polizas/${id}`); }
     createPoliza(polizaData: any) { return this.post('/polizas', polizaData); }
     updatePoliza(id: string, polizaData: any) { return this.patch(`/polizas/${id}`, polizaData); }
+    deletePoliza(id: string) { return this.delete(`/polizas/${id}`); }
 
     // Órdenes
     getOrders(params?: any): Promise<PaginatedResponse<any>> { return this.getPaginated('/orders', params); }
@@ -79,12 +80,14 @@ class ApiService {
     finishOrder(orderId: string, data: any) { return this.post(`/orders/${orderId}/finish`, data); }
     reportImpossibility(orderId: string, data: any) { return this.post(`/orders/${orderId}/impossibility`, data); }
     updateWorkProgress(orderId: string, progressData: any) { return this.post(`/orders/${orderId}/progress`, progressData); }
+    getOrdersStats(params?: any) { return this.get('/orders/stats/dashboard', { params }); }
 
     // Materiales
     getMaterials(params?: any) { return this.getPaginated('/materials', params); }
     getMaterial(id: string) { return this.get(`/materials/${id}`); }
     createMaterial(materialData: any) { return this.post('/materials', materialData); }
     updateMaterial(id: string, materialData: any) { return this.patch(`/materials/${id}`, materialData); }
+    getMaterialsStats() { return this.get('/materials/stats/dashboard'); }
 
     // Inventario
     getMyInventory() { return this.get<InventoryTechnician>('/inventario/mi-inventario'); }

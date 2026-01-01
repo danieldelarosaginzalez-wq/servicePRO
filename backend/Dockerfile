@@ -1,21 +1,14 @@
 # Backend Dockerfile - NestJS
 FROM node:18-alpine AS builder
 
-# Instalar dependencias para sharp (procesamiento de imágenes)
 RUN apk add --no-cache python3 make g++ vips-dev
 
 WORKDIR /app
 
-# Copiar archivos de dependencias
 COPY package*.json ./
+RUN npm ci
 
-# Instalar todas las dependencias (incluyendo dev para build)
-RUN npm install
-
-# Copiar código fuente
 COPY . .
-
-# Construir la aplicación
 RUN npm run build
 
 # Etapa de producción
@@ -23,22 +16,30 @@ FROM node:18-alpine
 
 RUN apk add --no-cache vips-dev
 
+# Crear usuario no-root
+RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
+
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
-# Crear directorio de uploads
-RUN mkdir -p uploads/avatars uploads/comprobantes uploads/evidencias uploads/firmas uploads/general
+# Crear directorios de uploads con permisos correctos
+RUN mkdir -p uploads/avatars uploads/comprobantes uploads/evidencias uploads/firmas uploads/general \
+    && chown -R nestjs:nodejs /app
 
-# Exponer puerto
+# Cambiar a usuario no-root
+USER nestjs
+
 EXPOSE 3001
 
-# Variables de entorno por defecto
 ENV NODE_ENV=production
 ENV PORT=3001
 
-# Comando de inicio
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+
 CMD ["node", "dist/main.js"]

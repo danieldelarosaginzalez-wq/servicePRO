@@ -71,4 +71,34 @@ export class MaterialsService {
             throw new NotFoundException(`Material con ID ${id} no encontrado`);
         }
     }
+
+    // Estadísticas de materiales
+    async getStats(): Promise<any> {
+        const total = await this.materialModel.countDocuments();
+        const activos = await this.materialModel.countDocuments({ estado: 'activo' });
+
+        // Materiales bajo stock (stock_actual < stock_minimo)
+        const bajoStock = await this.materialModel.countDocuments({
+            $expr: { $lt: ['$stock_actual', '$stock_minimo'] }
+        });
+
+        // Por categoría
+        const byCategory = await this.materialModel.aggregate([
+            { $group: { _id: '$categoria', count: { $sum: 1 } } },
+            { $sort: { count: -1 } }
+        ]);
+
+        // Lista de materiales bajo stock
+        const lowStockItems = await this.materialModel.find({
+            $expr: { $lt: ['$stock_actual', '$stock_minimo'] }
+        }).select('nombre codigo stock_actual stock_minimo').limit(10);
+
+        return {
+            total,
+            activos,
+            bajoStock,
+            byCategory: byCategory.map(item => ({ categoria: item._id || 'Sin categoría', cantidad: item.count })),
+            lowStockItems
+        };
+    }
 }

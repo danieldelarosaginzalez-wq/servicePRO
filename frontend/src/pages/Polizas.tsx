@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { useNavigate } from 'react-router-dom';
 import { ColDef, CellValueChangedEvent } from 'ag-grid-community';
 import {
     Box,
@@ -15,6 +16,8 @@ import {
     IconButton,
     Tooltip,
     Grid,
+    Alert,
+    Snackbar,
 } from '@mui/material';
 import { Add, Edit, Delete, Assignment, LocationOn } from '@mui/icons-material';
 import { ExcelGrid } from '../components/ExcelGrid';
@@ -24,10 +27,16 @@ import { Poliza } from '../types';
 
 const Polizas: React.FC = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [selectedPolizas, setSelectedPolizas] = useState<Poliza[]>([]);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingPoliza, setEditingPoliza] = useState<Poliza | null>(null);
+    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+        open: false,
+        message: '',
+        severity: 'success'
+    });
     const [formData, setFormData] = useState({
         poliza_number: '',
         descripcion: '',
@@ -44,7 +53,7 @@ const Polizas: React.FC = () => {
         },
     });
 
-    // Consulta de pólizas
+    // Consulta de pólizas (ahora incluye conteo de órdenes)
     const { data: polizasData, isLoading, refetch } = useQuery(
         ['polizas'],
         () => apiService.getPolizas()
@@ -64,7 +73,25 @@ const Polizas: React.FC = () => {
                 queryClient.invalidateQueries(['polizas']);
                 setDialogOpen(false);
                 resetForm();
+                setSnackbar({ open: true, message: editingPoliza ? 'Póliza actualizada' : 'Póliza creada', severity: 'success' });
             },
+            onError: (error: any) => {
+                setSnackbar({ open: true, message: error.response?.data?.message || 'Error al guardar', severity: 'error' });
+            }
+        }
+    );
+
+    // Mutación para eliminar póliza
+    const deletePolizaMutation = useMutation(
+        (id: string) => apiService.deletePoliza(id),
+        {
+            onSuccess: () => {
+                queryClient.invalidateQueries(['polizas']);
+                setSnackbar({ open: true, message: 'Póliza eliminada', severity: 'success' });
+            },
+            onError: (error: any) => {
+                setSnackbar({ open: true, message: error.response?.data?.message || 'Error al eliminar', severity: 'error' });
+            }
         }
     );
 
@@ -86,7 +113,7 @@ const Polizas: React.FC = () => {
             descripcion: poliza.descripcion,
             cliente: poliza.cliente,
             direccion: poliza.direccion,
-            ubicacion: poliza.ubicacion,
+            ubicacion: poliza.ubicacion || { lat: 0, lng: 0, geocoded: false },
             estado: poliza.estado,
             metadata: { costo_maximo: poliza.metadata?.costo_maximo || 0, ...poliza.metadata },
         });
@@ -94,15 +121,25 @@ const Polizas: React.FC = () => {
     }, []);
 
     const handleCreateOrder = useCallback((poliza: Poliza) => {
-        // Navegar a crear orden con datos de póliza
-        console.log('Crear orden para póliza:', poliza);
-    }, []);
+        // Navegar a órdenes con datos de la póliza pre-cargados
+        navigate('/orders', {
+            state: {
+                createOrder: true,
+                polizaData: {
+                    poliza_number: poliza.poliza_number,
+                    cliente: poliza.cliente,
+                    direccion: poliza.direccion,
+                    ubicacion: poliza.ubicacion
+                }
+            }
+        });
+    }, [navigate]);
 
     const handleDeletePoliza = useCallback((poliza: Poliza) => {
-        if (window.confirm(`¿Está seguro de eliminar la póliza "${poliza.poliza_number}"?`)) {
-            console.log('Eliminar póliza:', poliza);
+        if (window.confirm(`¿Está seguro de eliminar la póliza "${poliza.poliza_number}"?\n\nNota: No se puede eliminar si tiene órdenes asociadas.`)) {
+            deletePolizaMutation.mutate(poliza._id);
         }
-    }, []);
+    }, [deletePolizaMutation]);
 
     // Definición de columnas para el grid
     const columnDefs = useMemo<ColDef[]>(() => [
@@ -176,10 +213,9 @@ const Polizas: React.FC = () => {
             field: 'ordenes_count',
             headerName: 'Órdenes',
             width: 100,
-            valueGetter: () => Math.floor(Math.random() * 5), // Simulado
             cellRenderer: (params: any) => (
                 <Chip
-                    label={params.value}
+                    label={params.value || 0}
                     color={params.value > 0 ? 'primary' : 'default'}
                     size="small"
                 />
@@ -214,6 +250,7 @@ const Polizas: React.FC = () => {
                                     size="small"
                                     onClick={() => handleDeletePoliza(params.data)}
                                     color="error"
+                                    disabled={params.data.ordenes_count > 0}
                                 >
                                     <Delete fontSize="small" />
                                 </IconButton>
@@ -431,6 +468,17 @@ const Polizas: React.FC = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Snackbar para notificaciones */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={4000}
+                onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+            >
+                <Alert severity={snackbar.severity} onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };

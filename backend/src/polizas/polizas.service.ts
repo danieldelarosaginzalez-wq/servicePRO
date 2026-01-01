@@ -1,12 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Poliza, PolizaDocument } from './schemas/poliza.schema';
+import { Order, OrderDocument } from '../orders/schemas/order.schema';
 
 @Injectable()
 export class PolizasService {
     constructor(
         @InjectModel(Poliza.name) private polizaModel: Model<PolizaDocument>,
+        @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     ) { }
 
     async create(createPolizaDto: any): Promise<Poliza> {
@@ -62,9 +64,56 @@ export class PolizasService {
     }
 
     async remove(id: string): Promise<void> {
+        // Verificar si hay órdenes asociadas
+        const poliza = await this.polizaModel.findById(id);
+        if (!poliza) {
+            throw new NotFoundException(`Póliza con ID ${id} no encontrada`);
+        }
+
+        const ordersCount = await this.orderModel.countDocuments({ poliza_number: poliza.poliza_number });
+        if (ordersCount > 0) {
+            throw new BadRequestException(`No se puede eliminar la póliza porque tiene ${ordersCount} órdenes asociadas`);
+        }
+
         const result = await this.polizaModel.deleteOne({ _id: id }).exec();
         if (result.deletedCount === 0) {
             throw new NotFoundException(`Póliza con ID ${id} no encontrada`);
         }
+    }
+
+    // Contar órdenes por póliza
+    async countOrdersByPoliza(polizaNumber: string): Promise<number> {
+        return this.orderModel.countDocuments({ poliza_number: polizaNumber });
+    }
+
+    // Obtener pólizas con conteo de órdenes
+    async findAllWithOrderCount(query: any = {}): Promise<{ data: any[]; total: number }> {
+        const { page = 1, limit = 50, ...filters } = query;
+        const skip = (page - 1) * limit;
+
+        const mongoFilters: any = {};
+        if (filters.estado) mongoFilters.estado = filters.estado;
+        if (filters.cliente) mongoFilters.cliente = { $regex: filters.cliente, $options: 'i' };
+
+        const [polizas, total] = await Promise.all([
+            this.polizaModel
+                .find(mongoFilters)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(parseInt(limit))
+                .lean()
+                .exec(),
+            this.polizaModel.countDocuments(mongoFilters),
+        ]);
+
+        // Agregar conteo de órdenes a cada póliza
+        const polizasWithCount = await Promise.all(
+            polizas.map(async (poliza) => {
+                const ordersCount = await this.orderModel.countDocuments({ poliza_number: poliza.poliza_number });
+                return { ...poliza, ordenes_count: ordersCount };
+            })
+        );
+
+        return { data: polizasWithCount, total };
     }
 }

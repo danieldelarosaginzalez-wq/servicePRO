@@ -14,12 +14,20 @@ export class PolizasController {
 
     @Get()
     findAll(@Query() query: any) {
-        return this.polizasService.findAll(query);
+        // Usar el nuevo método que incluye conteo de órdenes
+        return this.polizasService.findAllWithOrderCount(query);
     }
 
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.polizasService.findOne(id);
+    }
+
+    @Get(':id/orders-count')
+    async getOrdersCount(@Param('id') id: string) {
+        const poliza = await this.polizasService.findOne(id);
+        const count = await this.polizasService.countOrdersByPoliza(poliza.poliza_number);
+        return { count };
     }
 
     @Patch(':id')
