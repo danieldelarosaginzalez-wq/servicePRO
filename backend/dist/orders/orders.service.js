@@ -18,13 +18,11 @@ const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const order_schema_1 = require("./schemas/order.schema");
 const poliza_schema_1 = require("../polizas/schemas/poliza.schema");
-const notifications_service_1 = require("../notifications/notifications.service");
 const websocket_gateway_1 = require("../websocket/websocket.gateway");
 let OrdersService = class OrdersService {
-    constructor(orderModel, polizaModel, notificationsService, wsGateway) {
+    constructor(orderModel, polizaModel, wsGateway) {
         this.orderModel = orderModel;
         this.polizaModel = polizaModel;
-        this.notificationsService = notificationsService;
         this.wsGateway = wsGateway;
     }
     async create(createOrderDto) {
@@ -50,8 +48,9 @@ let OrdersService = class OrdersService {
         delete orderData['ubicacion.lng'];
         const createdOrder = new this.orderModel(orderData);
         const saved = await createdOrder.save();
-        this.wsGateway.notifyOrderCreated(saved);
-        await this.notificationsService.notifyOrderCreated(saved, saved.analista_id.toString());
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderCreated(saved);
+        }
         return saved;
     }
     async findAll(query = {}) {
@@ -128,8 +127,9 @@ let OrdersService = class OrdersService {
             .populate('analista_id', 'nombre email')
             .populate('tecnico_id', 'nombre email')
             .exec();
-        this.wsGateway.notifyOrderAssigned(updatedOrder, assignDto.technicianId);
-        await this.notificationsService.notifyOrderAssigned(updatedOrder, assignDto.technicianId, updatedOrder.analista_id?.toString() || '');
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderAssigned(updatedOrder, assignDto.technicianId);
+        }
         return updatedOrder;
     }
     async startOrder(id, userId) {
@@ -151,8 +151,9 @@ let OrdersService = class OrdersService {
             .populate('analista_id', 'nombre email')
             .populate('tecnico_id', 'nombre email')
             .exec();
-        this.wsGateway.notifyOrderStatusChanged(updatedOrder);
-        await this.notificationsService.notifyOrderStarted(updatedOrder, userId);
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderStatusChanged(updatedOrder);
+        }
         return updatedOrder;
     }
     async finishOrder(id, userId, finishData) {
@@ -179,8 +180,9 @@ let OrdersService = class OrdersService {
             .populate('analista_id', 'nombre email')
             .populate('tecnico_id', 'nombre email')
             .exec();
-        this.wsGateway.notifyOrderCompleted(updatedOrder);
-        await this.notificationsService.notifyOrderCompleted(updatedOrder, userId);
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderCompleted(updatedOrder);
+        }
         return updatedOrder;
     }
     async reportImpossibility(id, userId, impossibilityData) {
@@ -206,8 +208,9 @@ let OrdersService = class OrdersService {
             .populate('analista_id', 'nombre email')
             .populate('tecnico_id', 'nombre email')
             .exec();
-        this.wsGateway.notifyOrderImpossibility(updatedOrder);
-        await this.notificationsService.notifyOrderImpossibility(updatedOrder, userId, impossibilityData.motivo);
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderImpossibility(updatedOrder);
+        }
         return updatedOrder;
     }
     async updateWorkProgress(id, userId, progressData) {
@@ -276,8 +279,9 @@ let OrdersService = class OrdersService {
             .populate('tecnico_id', 'nombre email')
             .exec();
         console.log('✅ Orden actualizada exitosamente');
-        this.wsGateway.notifyOrderProgress(updatedOrder, fase);
-        await this.notificationsService.notifyOrderProgress(updatedOrder, fase, userId);
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderProgress(updatedOrder, fase);
+        }
         return updatedOrder;
     }
     async generateOrderCode() {
@@ -290,10 +294,9 @@ exports.OrdersService = OrdersService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, mongoose_1.InjectModel)(order_schema_1.Order.name)),
     __param(1, (0, mongoose_1.InjectModel)(poliza_schema_1.Poliza.name)),
-    __param(2, (0, common_1.Inject)((0, common_1.forwardRef)(() => notifications_service_1.NotificationsService))),
+    __param(2, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [mongoose_2.Model,
         mongoose_2.Model,
-        notifications_service_1.NotificationsService,
         websocket_gateway_1.WebSocketGatewayService])
 ], OrdersService);
 //# sourceMappingURL=orders.service.js.map

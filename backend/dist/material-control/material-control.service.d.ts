@@ -1,14 +1,10 @@
 import { Model } from 'mongoose';
 import { MaterialControl, MaterialControlDocument } from './schemas/material-control.schema';
 import { InventoryService } from '../inventory/inventory.service';
-import { NotificationsService } from '../notifications/notifications.service';
-import { WebSocketGatewayService } from '../websocket/websocket.gateway';
 export declare class MaterialControlService {
     private materialControlModel;
     private inventoryService;
-    private notificationsService;
-    private wsGateway;
-    constructor(materialControlModel: Model<MaterialControlDocument>, inventoryService: InventoryService, notificationsService: NotificationsService, wsGateway: WebSocketGatewayService);
+    constructor(materialControlModel: Model<MaterialControlDocument>, inventoryService: InventoryService);
     create(createDto: any, userId: string): Promise<MaterialControl>;
     findAll(query?: any): Promise<{
         data: MaterialControl[];

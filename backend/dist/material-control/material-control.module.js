@@ -13,8 +13,6 @@ const material_control_controller_1 = require("./material-control.controller");
 const material_control_service_1 = require("./material-control.service");
 const material_control_schema_1 = require("./schemas/material-control.schema");
 const inventory_module_1 = require("../inventory/inventory.module");
-const notifications_module_1 = require("../notifications/notifications.module");
-const websocket_module_1 = require("../websocket/websocket.module");
 let MaterialControlModule = class MaterialControlModule {
 };
 exports.MaterialControlModule = MaterialControlModule;
@@ -25,8 +23,6 @@ exports.MaterialControlModule = MaterialControlModule = __decorate([
                 { name: material_control_schema_1.MaterialControl.name, schema: material_control_schema_1.MaterialControlSchema }
             ]),
             inventory_module_1.InventoryModule,
-            (0, common_1.forwardRef)(() => notifications_module_1.NotificationsModule),
-            websocket_module_1.WebSocketModule,
         ],
         controllers: [material_control_controller_1.MaterialControlController],
         providers: [material_control_service_1.MaterialControlService],

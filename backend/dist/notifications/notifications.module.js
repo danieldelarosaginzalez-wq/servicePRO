@@ -12,7 +12,6 @@ const mongoose_1 = require("@nestjs/mongoose");
 const notifications_controller_1 = require("./notifications.controller");
 const notifications_service_1 = require("./notifications.service");
 const notification_schema_1 = require("./schemas/notification.schema");
-const websocket_module_1 = require("../websocket/websocket.module");
 const users_module_1 = require("../users/users.module");
 let NotificationsModule = class NotificationsModule {
 };
@@ -23,7 +22,6 @@ exports.NotificationsModule = NotificationsModule = __decorate([
             mongoose_1.MongooseModule.forFeature([
                 { name: notification_schema_1.Notification.name, schema: notification_schema_1.NotificationSchema },
             ]),
-            (0, common_1.forwardRef)(() => websocket_module_1.WebSocketModule),
             users_module_1.UsersModule,
         ],
         controllers: [notifications_controller_1.NotificationsController],

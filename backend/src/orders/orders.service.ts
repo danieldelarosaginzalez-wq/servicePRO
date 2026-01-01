@@ -1,10 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Order, OrderDocument } from './schemas/order.schema';
 import { Poliza, PolizaDocument } from '../polizas/schemas/poliza.schema';
 import { CreateOrderDto, UpdateOrderDto, AssignTechnicianDto } from './dto/order.dto';
-import { NotificationsService } from '../notifications/notifications.service';
 import { WebSocketGatewayService } from '../websocket/websocket.gateway';
 
 @Injectable()
@@ -12,9 +11,7 @@ export class OrdersService {
     constructor(
         @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
         @InjectModel(Poliza.name) private polizaModel: Model<PolizaDocument>,
-        @Inject(forwardRef(() => NotificationsService))
-        private notificationsService: NotificationsService,
-        private wsGateway: WebSocketGatewayService,
+        @Optional() private wsGateway: WebSocketGatewayService,
     ) { }
 
     async create(createOrderDto: CreateOrderDto): Promise<Order> {
@@ -50,9 +47,10 @@ export class OrdersService {
         const createdOrder = new this.orderModel(orderData);
         const saved = await createdOrder.save();
 
-        // Notificar a analistas
-        this.wsGateway.notifyOrderCreated(saved);
-        await this.notificationsService.notifyOrderCreated(saved, saved.analista_id.toString());
+        // Notificar a analistas via WebSocket
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderCreated(saved);
+        }
 
         return saved;
     }
@@ -156,12 +154,9 @@ export class OrdersService {
             .exec();
 
         // Notificar al técnico y analistas
-        this.wsGateway.notifyOrderAssigned(updatedOrder, assignDto.technicianId);
-        await this.notificationsService.notifyOrderAssigned(
-            updatedOrder,
-            assignDto.technicianId,
-            updatedOrder.analista_id?.toString() || ''
-        );
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderAssigned(updatedOrder, assignDto.technicianId);
+        }
 
         return updatedOrder;
     }
@@ -195,8 +190,9 @@ export class OrdersService {
             .exec();
 
         // Notificar que la orden fue iniciada
-        this.wsGateway.notifyOrderStatusChanged(updatedOrder);
-        await this.notificationsService.notifyOrderStarted(updatedOrder, userId);
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderStatusChanged(updatedOrder);
+        }
 
         return updatedOrder;
     }
@@ -235,8 +231,9 @@ export class OrdersService {
             .exec();
 
         // Notificar que la orden fue completada
-        this.wsGateway.notifyOrderCompleted(updatedOrder);
-        await this.notificationsService.notifyOrderCompleted(updatedOrder, userId);
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderCompleted(updatedOrder);
+        }
 
         return updatedOrder;
     }
@@ -274,12 +271,9 @@ export class OrdersService {
             .exec();
 
         // Notificar imposibilidad
-        this.wsGateway.notifyOrderImpossibility(updatedOrder);
-        await this.notificationsService.notifyOrderImpossibility(
-            updatedOrder,
-            userId,
-            impossibilityData.motivo
-        );
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderImpossibility(updatedOrder);
+        }
 
         return updatedOrder;
     }
@@ -376,8 +370,9 @@ export class OrdersService {
         console.log('✅ Orden actualizada exitosamente');
 
         // Notificar progreso
-        this.wsGateway.notifyOrderProgress(updatedOrder, fase);
-        await this.notificationsService.notifyOrderProgress(updatedOrder, fase, userId);
+        if (this.wsGateway) {
+            this.wsGateway.notifyOrderProgress(updatedOrder, fase);
+        }
 
         return updatedOrder;
     }

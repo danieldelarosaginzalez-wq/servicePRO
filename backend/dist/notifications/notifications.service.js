@@ -17,13 +17,15 @@ const common_1 = require("@nestjs/common");
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const notification_schema_1 = require("./schemas/notification.schema");
-const websocket_gateway_1 = require("../websocket/websocket.gateway");
 const user_schema_1 = require("../users/schemas/user.schema");
 let NotificationsService = class NotificationsService {
-    constructor(notificationModel, userModel, wsGateway) {
+    constructor(notificationModel, userModel) {
         this.notificationModel = notificationModel;
         this.userModel = userModel;
-        this.wsGateway = wsGateway;
+        this.wsGateway = null;
+    }
+    setWebSocketGateway(gateway) {
+        this.wsGateway = gateway;
     }
     async create(dto) {
         const notification = new this.notificationModel({
@@ -37,15 +39,22 @@ let NotificationsService = class NotificationsService {
             created_at: new Date(),
         });
         const saved = await notification.save();
-        this.wsGateway.sendNotification(dto.recipient_id, {
-            _id: saved._id.toString(),
-            type: dto.type,
-            title: dto.title,
-            message: dto.message,
-            priority: dto.priority || 'medium',
-            data: dto.data,
-            created_at: saved.created_at,
-        });
+        if (this.wsGateway) {
+            try {
+                this.wsGateway.sendNotification(dto.recipient_id, {
+                    _id: saved._id.toString(),
+                    type: dto.type,
+                    title: dto.title,
+                    message: dto.message,
+                    priority: dto.priority || 'medium',
+                    data: dto.data,
+                    created_at: saved.created_at,
+                });
+            }
+            catch (error) {
+                console.error('Error sending WebSocket notification:', error);
+            }
+        }
         return saved;
     }
     async notifyRole(role, dto) {
@@ -285,7 +294,6 @@ exports.NotificationsService = NotificationsService = __decorate([
     __param(0, (0, mongoose_1.InjectModel)(notification_schema_1.Notification.name)),
     __param(1, (0, mongoose_1.InjectModel)(user_schema_1.User.name)),
     __metadata("design:paramtypes", [mongoose_2.Model,
-        mongoose_2.Model,
-        websocket_gateway_1.WebSocketGatewayService])
+        mongoose_2.Model])
 ], NotificationsService);
 //# sourceMappingURL=notifications.service.js.map

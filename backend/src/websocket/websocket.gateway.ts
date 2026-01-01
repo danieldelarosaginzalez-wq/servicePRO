@@ -4,10 +4,12 @@ import {
     SubscribeMessage,
     OnGatewayConnection,
     OnGatewayDisconnect,
+    OnGatewayInit,
     ConnectedSocket,
     MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { Inject, forwardRef, Optional } from '@nestjs/common';
 
 interface ConnectedUser {
     odId: string;

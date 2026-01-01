@@ -1,10 +1,9 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { InventoryController } from './inventory.controller';
 import { InventoryService } from './inventory.service';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { Material, MaterialSchema } from '../materials/schemas/material.schema';
-import { NotificationsModule } from '../notifications/notifications.module';
 import { WebSocketModule } from '../websocket/websocket.module';
 
 @Module({
@@ -13,7 +12,6 @@ import { WebSocketModule } from '../websocket/websocket.module';
             { name: User.name, schema: UserSchema },
             { name: Material.name, schema: MaterialSchema },
         ]),
-        forwardRef(() => NotificationsModule),
         WebSocketModule,
     ],
     controllers: [InventoryController],

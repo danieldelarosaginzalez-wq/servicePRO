@@ -1,6 +1,5 @@
 import { Model } from 'mongoose';
 import { Notification, NotificationDocument, NotificationType, NotificationPriority } from './schemas/notification.schema';
-import { WebSocketGatewayService } from '../websocket/websocket.gateway';
 import { UserDocument } from '../users/schemas/user.schema';
 interface CreateNotificationDto {
     recipient_id: string;
@@ -15,7 +14,8 @@ export declare class NotificationsService {
     private notificationModel;
     private userModel;
     private wsGateway;
-    constructor(notificationModel: Model<NotificationDocument>, userModel: Model<UserDocument>, wsGateway: WebSocketGatewayService);
+    constructor(notificationModel: Model<NotificationDocument>, userModel: Model<UserDocument>);
+    setWebSocketGateway(gateway: any): void;
     create(dto: CreateNotificationDto): Promise<Notification>;
     notifyRole(role: string, dto: Omit<CreateNotificationDto, 'recipient_id'>): Promise<void>;
     notifyOrderCreated(order: any, analistaId: string): Promise<void>;

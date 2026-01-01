@@ -1,9 +1,8 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { Material, MaterialDocument } from '../materials/schemas/material.schema';
-import { NotificationsService } from '../notifications/notifications.service';
 import { WebSocketGatewayService } from '../websocket/websocket.gateway';
 
 // Esquemas para inventario de técnicos
@@ -47,9 +46,7 @@ export class InventoryService {
     constructor(
         @InjectModel(User.name) private userModel: Model<UserDocument>,
         @InjectModel(Material.name) private materialModel: Model<MaterialDocument>,
-        @Inject(forwardRef(() => NotificationsService))
-        private notificationsService: NotificationsService,
-        private wsGateway: WebSocketGatewayService,
+        @Optional() private wsGateway: WebSocketGatewayService,
     ) { }
 
     async getTechnicianInventory(technicianId: string) {
@@ -213,13 +210,10 @@ export class InventoryService {
         // Guardar inventario actualizado
         this.technicianInventories.set(technicianId, inventory);
 
-        // Notificar al técnico
-        this.wsGateway.notifyMaterialAssigned(technicianId, assignData.materials);
-        await this.notificationsService.notifyMaterialsAssigned(
-            technicianId,
-            assignData.materials,
-            assignedBy
-        );
+        // Notificar al técnico via WebSocket
+        if (this.wsGateway) {
+            this.wsGateway.notifyMaterialAssigned(technicianId, assignData.materials);
+        }
 
         return {
             success: true,
@@ -356,24 +350,9 @@ export class InventoryService {
         // Guardar inventario actualizado
         this.technicianInventories.set(technicianId, inventory);
 
-        // Notificar consumo de materiales
-        this.wsGateway.notifyMaterialsConsumed(technicianId, orderId, materialsConsumed);
-        await this.notificationsService.notifyMaterialsConsumed(
-            technicianId,
-            materialsConsumed,
-            orderId,
-            `OT-${orderId.slice(-6)}`
-        );
-
-        // Verificar stock bajo
-        for (const item of inventory) {
-            if (item.cantidad_actual <= 5) {
-                this.wsGateway.notifyLowStock(technicianId, item.material);
-                await this.notificationsService.notifyLowStock(technicianId, {
-                    ...item.material,
-                    cantidad_actual: item.cantidad_actual,
-                });
-            }
+        // Notificar consumo de materiales via WebSocket
+        if (this.wsGateway) {
+            this.wsGateway.notifyMaterialsConsumed(technicianId, orderId, materialsConsumed);
         }
 
         return {

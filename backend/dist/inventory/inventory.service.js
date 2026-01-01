@@ -18,13 +18,11 @@ const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const user_schema_1 = require("../users/schemas/user.schema");
 const material_schema_1 = require("../materials/schemas/material.schema");
-const notifications_service_1 = require("../notifications/notifications.service");
 const websocket_gateway_1 = require("../websocket/websocket.gateway");
 let InventoryService = class InventoryService {
-    constructor(userModel, materialModel, notificationsService, wsGateway) {
+    constructor(userModel, materialModel, wsGateway) {
         this.userModel = userModel;
         this.materialModel = materialModel;
-        this.notificationsService = notificationsService;
         this.wsGateway = wsGateway;
         this.technicianInventories = new Map();
         this.inventoryMovements = [];
@@ -156,8 +154,9 @@ let InventoryService = class InventoryService {
             }
         }
         this.technicianInventories.set(technicianId, inventory);
-        this.wsGateway.notifyMaterialAssigned(technicianId, assignData.materials);
-        await this.notificationsService.notifyMaterialsAssigned(technicianId, assignData.materials, assignedBy);
+        if (this.wsGateway) {
+            this.wsGateway.notifyMaterialAssigned(technicianId, assignData.materials);
+        }
         return {
             success: true,
             message: `Materiales asignados exitosamente a ${technician.nombre}`,
@@ -268,16 +267,8 @@ let InventoryService = class InventoryService {
             }
         }
         this.technicianInventories.set(technicianId, inventory);
-        this.wsGateway.notifyMaterialsConsumed(technicianId, orderId, materialsConsumed);
-        await this.notificationsService.notifyMaterialsConsumed(technicianId, materialsConsumed, orderId, `OT-${orderId.slice(-6)}`);
-        for (const item of inventory) {
-            if (item.cantidad_actual <= 5) {
-                this.wsGateway.notifyLowStock(technicianId, item.material);
-                await this.notificationsService.notifyLowStock(technicianId, {
-                    ...item.material,
-                    cantidad_actual: item.cantidad_actual,
-                });
-            }
+        if (this.wsGateway) {
+            this.wsGateway.notifyMaterialsConsumed(technicianId, orderId, materialsConsumed);
         }
         return {
             success: true,
@@ -299,10 +290,9 @@ exports.InventoryService = InventoryService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, mongoose_1.InjectModel)(user_schema_1.User.name)),
     __param(1, (0, mongoose_1.InjectModel)(material_schema_1.Material.name)),
-    __param(2, (0, common_1.Inject)((0, common_1.forwardRef)(() => notifications_service_1.NotificationsService))),
+    __param(2, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [mongoose_2.Model,
         mongoose_2.Model,
-        notifications_service_1.NotificationsService,
         websocket_gateway_1.WebSocketGatewayService])
 ], InventoryService);
 //# sourceMappingURL=inventory.service.js.map

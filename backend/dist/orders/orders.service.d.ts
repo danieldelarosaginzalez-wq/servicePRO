@@ -2,14 +2,12 @@ import { Model } from 'mongoose';
 import { Order, OrderDocument } from './schemas/order.schema';
 import { PolizaDocument } from '../polizas/schemas/poliza.schema';
 import { CreateOrderDto, UpdateOrderDto, AssignTechnicianDto } from './dto/order.dto';
-import { NotificationsService } from '../notifications/notifications.service';
 import { WebSocketGatewayService } from '../websocket/websocket.gateway';
 export declare class OrdersService {
     private orderModel;
     private polizaModel;
-    private notificationsService;
     private wsGateway;
-    constructor(orderModel: Model<OrderDocument>, polizaModel: Model<PolizaDocument>, notificationsService: NotificationsService, wsGateway: WebSocketGatewayService);
+    constructor(orderModel: Model<OrderDocument>, polizaModel: Model<PolizaDocument>, wsGateway: WebSocketGatewayService);
     create(createOrderDto: CreateOrderDto): Promise<Order>;
     findAll(query?: any): Promise<{
         data: Order[];

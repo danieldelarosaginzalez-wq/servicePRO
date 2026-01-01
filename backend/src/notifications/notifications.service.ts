@@ -1,8 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Notification, NotificationDocument, NotificationType, NotificationPriority } from './schemas/notification.schema';
-import { WebSocketGatewayService } from '../websocket/websocket.gateway';
 import { User, UserDocument } from '../users/schemas/user.schema';
 
 interface CreateNotificationDto {
@@ -17,11 +16,17 @@ interface CreateNotificationDto {
 
 @Injectable()
 export class NotificationsService {
+    private wsGateway: any = null;
+
     constructor(
         @InjectModel(Notification.name) private notificationModel: Model<NotificationDocument>,
         @InjectModel(User.name) private userModel: Model<UserDocument>,
-        private wsGateway: WebSocketGatewayService,
     ) { }
+
+    // Método para inyectar el gateway después de la inicialización (evita dependencia circular)
+    setWebSocketGateway(gateway: any) {
+        this.wsGateway = gateway;
+    }
 
     // ==================== CREAR Y ENVIAR NOTIFICACIONES ====================
 
@@ -39,16 +44,22 @@ export class NotificationsService {
 
         const saved = await notification.save();
 
-        // Enviar por WebSocket en tiempo real
-        this.wsGateway.sendNotification(dto.recipient_id, {
-            _id: saved._id.toString(),
-            type: dto.type,
-            title: dto.title,
-            message: dto.message,
-            priority: dto.priority || 'medium',
-            data: dto.data,
-            created_at: saved.created_at,
-        });
+        // Enviar por WebSocket en tiempo real si está disponible
+        if (this.wsGateway) {
+            try {
+                this.wsGateway.sendNotification(dto.recipient_id, {
+                    _id: saved._id.toString(),
+                    type: dto.type,
+                    title: dto.title,
+                    message: dto.message,
+                    priority: dto.priority || 'medium',
+                    data: dto.data,
+                    created_at: saved.created_at,
+                });
+            } catch (error) {
+                console.error('Error sending WebSocket notification:', error);
+            }
+        }
 
         return saved;
     }
