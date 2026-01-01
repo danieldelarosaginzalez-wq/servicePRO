@@ -27,20 +27,30 @@ export interface NotificationsResponse {
 
 class NotificationService {
     async getNotifications(params?: { page?: number; limit?: number; unreadOnly?: boolean }): Promise<NotificationsResponse> {
-        const queryParams = new URLSearchParams();
-        if (params?.page) queryParams.append('page', params.page.toString());
-        if (params?.limit) queryParams.append('limit', params.limit.toString());
-        if (params?.unreadOnly) queryParams.append('unreadOnly', 'true');
+        try {
+            const queryParams = new URLSearchParams();
+            if (params?.page) queryParams.append('page', params.page.toString());
+            if (params?.limit) queryParams.append('limit', params.limit.toString());
+            if (params?.unreadOnly) queryParams.append('unreadOnly', 'true');
 
-        const response = await apiService.get<NotificationsResponse>(
-            `/notifications?${queryParams.toString()}`
-        );
-        return response.data;
+            const response = await apiService.get<NotificationsResponse>(
+                `/notifications?${queryParams.toString()}`
+            );
+            return response.data || { data: [], total: 0, unread: 0 };
+        } catch (error) {
+            console.error('Error fetching notifications:', error);
+            return { data: [], total: 0, unread: 0 };
+        }
     }
 
     async getUnreadCount(): Promise<number> {
-        const response = await apiService.get<{ unread: number }>('/notifications/unread-count');
-        return response.data.unread;
+        try {
+            const response = await apiService.get<{ unread: number }>('/notifications/unread-count');
+            return response.data?.unread || 0;
+        } catch (error) {
+            console.error('Error fetching unread count:', error);
+            return 0;
+        }
     }
 
     async markAsRead(notificationId: string): Promise<void> {
@@ -52,7 +62,7 @@ class NotificationService {
             '/notifications/read-all',
             {}
         );
-        return { modified: response.data.modified };
+        return { modified: response.data?.modified || 0 };
     }
 
     async sendDirectMessage(recipientId: string, message: string): Promise<void> {

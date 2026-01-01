@@ -39,16 +39,25 @@ const NotificationCenter: React.FC = () => {
             setLoading(true);
             const response = await notificationService.getNotifications({ page: pageNum, limit: 10 });
 
+            const data = response?.data || [];
+            const unread = response?.unread || 0;
+
             if (append) {
-                setNotifications(prev => [...prev, ...response.data]);
+                setNotifications(prev => [...prev, ...data]);
             } else {
-                setNotifications(response.data);
+                setNotifications(data);
             }
 
-            setUnreadCount(response.unread);
-            setHasMore(response.data.length === 10);
+            setUnreadCount(unread);
+            setHasMore(data.length === 10);
         } catch (error) {
             console.error('Error loading notifications:', error);
+            // En caso de error, inicializar con valores vacíos
+            if (!append) {
+                setNotifications([]);
+                setUnreadCount(0);
+            }
+            setHasMore(false);
         } finally {
             setLoading(false);
         }
